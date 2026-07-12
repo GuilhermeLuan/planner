@@ -1,9 +1,13 @@
 package dev.guilhermeluan.planner
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.guilhermeluan.planner.day.DayScreen
 import dev.guilhermeluan.planner.day.DayViewModel
@@ -35,8 +40,28 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { PlannerTheme { PlannerApp(viewModel, dayViewModel) } }
+        setContent {
+            PlannerTheme {
+                NotificationPermissionRequester {
+                    PlannerApp(viewModel, dayViewModel)
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun NotificationPermissionRequester(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* notificação funciona sem a permissão, só perde o alerta */ }
+    LaunchedEffect(Unit) {
+        if (dev.guilhermeluan.planner.notifications.NotificationPermission.shouldRequest(context)) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    content()
 }
 
 @Composable
