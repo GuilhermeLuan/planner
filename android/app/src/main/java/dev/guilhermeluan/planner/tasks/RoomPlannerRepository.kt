@@ -177,18 +177,7 @@ class RoomPlannerRepository(
             time = routine.time,
         )).copy(status = status)
         val updatedAt = clock.instant().toString()
-        routineDao.writeOccurrenceMutation(
-            occurrence = occurrence.toEntity(accountId, updatedAt),
-            operation = OutboxEntity(
-                operationId = idGenerator.nextId(),
-                accountId = accountId,
-                entityType = "routine_occurrence",
-                entityId = occurrence.id,
-                kind = "upsert",
-                payloadJson = occurrence.toPayload(),
-                clientUpdatedAt = updatedAt,
-            ),
-        )
+        routineDao.writeLocalOccurrence(occurrence.toEntity(accountId, updatedAt))
         return occurrence
     }
 
@@ -210,18 +199,7 @@ class RoomPlannerRepository(
 
     private suspend fun persistTask(task: PlannerTask, kind: String = "upsert"): PlannerTask {
         val updatedAt = clock.instant().toString()
-        dao.writeTaskMutation(
-            task = task.toEntity(updatedAt),
-            operation = OutboxEntity(
-                operationId = idGenerator.nextId(),
-                accountId = task.accountId,
-                entityType = "task",
-                entityId = task.id,
-                kind = kind,
-                payloadJson = task.toPayload(),
-                clientUpdatedAt = updatedAt,
-            ),
-        )
+        dao.writeLocalTask(task.toEntity(updatedAt))
         return task
     }
 
@@ -230,18 +208,7 @@ class RoomPlannerRepository(
         kind: String = "upsert",
     ): PlannerRoutine {
         val updatedAt = clock.instant().toString()
-        routineDao.writeRoutineMutation(
-            routine = routine.toEntity(updatedAt),
-            operation = OutboxEntity(
-                operationId = idGenerator.nextId(),
-                accountId = routine.accountId,
-                entityType = "routine",
-                entityId = routine.id,
-                kind = kind,
-                payloadJson = routine.toPayload(),
-                clientUpdatedAt = updatedAt,
-            ),
-        )
+        routineDao.writeLocalRoutine(routine.toEntity(updatedAt))
         return routine
     }
 

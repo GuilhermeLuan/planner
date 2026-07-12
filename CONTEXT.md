@@ -2,17 +2,13 @@
 
 Este contexto define a linguagem de um planner pessoal focado em organizar cada dia com rotinas recorrentes e tarefas pontuais.
 
-Cada Planner pertence a uma Conta, e uma instalação pode atender várias Contas sem misturar seus dados.
+Cada Planner pertence a uma Conta. No aplicativo Android local-only, cada instalação cria e restaura uma única Conta local, sem servidor ou autenticação remota.
 
 ## Contas
 
 **Conta**:
 Identidade privada de uma pessoa usuária, dona de um Planner e dos seus dados.
 _Evitar_: usuário (quando o conceito for a identidade e seus dados), perfil
-
-**Conta administradora**:
-Conta com responsabilidade de configurar a instalação e criar ou convidar outras Contas.
-_Evitar_: administrador global, superusuário
 
 **Fuso da Conta**:
 Configuração que define como os Dias, horários, recorrências e notificações são interpretados para uma Conta.

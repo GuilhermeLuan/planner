@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -77,7 +76,7 @@ fun DayScreen(
     onSelectDay: (LocalDate) -> Unit,
     onCreateTask: (TaskDraft) -> Unit,
     onToggleTask: (String, Boolean) -> Unit,
-    onLogout: () -> Unit,
+    onLogout: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onCreateRoutine: (RoutineDraft) -> Unit = {},
     onToggleRoutine: (String, LocalDate, RoutineOccurrenceStatus) -> Unit = { _, _, _ -> },
@@ -118,7 +117,6 @@ fun DayScreen(
                         selectedDay = selectedDay,
                         onPrevious = { onSelectDay(selectedDay.minusDays(1)) },
                         onNext = { onSelectDay(selectedDay.plusDays(1)) },
-                        onLogout = onLogout,
                         onOpenSettings = onOpenSettings,
                         onOpenCalendar = { showCalendar = true },
                     )
@@ -400,7 +398,6 @@ private fun DayHeader(
     selectedDay: LocalDate,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
-    onLogout: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenCalendar: () -> Unit,
 ) {
@@ -429,9 +426,6 @@ private fun DayHeader(
             Row {
                 IconButton(onClick = onOpenSettings, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Outlined.Settings, contentDescription = "Configurações")
-                }
-                IconButton(onClick = onLogout, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Outlined.Logout, contentDescription = "Sair")
                 }
             }
         }

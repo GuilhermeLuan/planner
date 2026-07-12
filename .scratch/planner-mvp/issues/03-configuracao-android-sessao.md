@@ -1,6 +1,6 @@
 # Configuração Android e sessão da Conta
 
-Status: ready-for-agent
+Status: complete
 
 ## What to build
 
@@ -10,14 +10,14 @@ O dispositivo deve manter uma única Conta ativa. Logout deve limpar o acesso lo
 
 ## Acceptance criteria
 
-- [ ] A primeira execução solicita e persiste uma URL de servidor válida, aceitando HTTP e HTTPS.
-- [ ] O app mostra um aviso claro antes de enviar credenciais por HTTP.
-- [ ] Login válido baixa a Conta e o Planner inicial; credenciais inválidas ou Conta desativada produzem erro acionável.
-- [ ] Uma Conta com senha temporária é direcionada à troca obrigatória antes de continuar para o uso normal.
-- [ ] Token e segredos de sessão são armazenados no Android Keystore e não em texto puro no armazenamento comum.
-- [ ] O app consegue abrir a sessão inicial sem rede após o bootstrap conectado.
-- [ ] Logout encerra a sessão local e a troca de Conta não mistura dados de Planners.
-- [ ] Testes de contrato do endpoint e testes instrumentados do Compose cobrem configuração, alerta HTTP, login, troca de senha, bootstrap offline, logout e Conta única ativa.
+- [x] A primeira execução solicita e persiste uma URL de servidor válida, aceitando HTTP e HTTPS.
+- [x] O app mostra um aviso claro antes de enviar credenciais por HTTP.
+- [x] Login válido baixa a Conta e o Planner inicial; credenciais inválidas ou Conta desativada produzem erro acionável.
+- [x] Uma Conta com senha temporária é direcionada à troca obrigatória antes de continuar para o uso normal.
+- [x] Token e segredos de sessão são armazenados no Android Keystore e não em texto puro no armazenamento comum.
+- [x] O app consegue abrir a sessão inicial sem rede após o bootstrap conectado.
+- [x] Logout encerra a sessão local e a troca de Conta não mistura dados de Planners.
+- [x] Testes de contrato do endpoint e testes instrumentados do Compose cobrem configuração, alerta HTTP, login, troca de senha, bootstrap offline, logout e Conta única ativa.
 
 ## Blocked by
 

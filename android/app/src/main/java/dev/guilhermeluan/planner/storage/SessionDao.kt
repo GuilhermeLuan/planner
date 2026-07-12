@@ -36,6 +36,9 @@ abstract class SessionDao {
     @Query("UPDATE accounts SET timezone = :timezone WHERE id = :accountId")
     abstract suspend fun updateTimezone(accountId: String, timezone: String)
 
+    @Query("UPDATE accounts SET username = :username, timezone = :timezone, mustChangePassword = :mustChangePassword WHERE id = :accountId")
+    abstract suspend fun updateAccount(accountId: String, username: String, timezone: String, mustChangePassword: Boolean)
+
     @Query("DELETE FROM session_metadata WHERE `key` = 'active_account_id'")
     abstract suspend fun clearActiveAccess()
 
@@ -47,6 +50,14 @@ abstract class SessionDao {
 
     @Transaction
     open suspend fun saveActive(account: AccountEntity, planner: PlannerEntity) {
+        upsertAccount(account)
+        upsertPlanner(planner)
+        upsertMetadata(SessionMetadataEntity(ACTIVE_ACCOUNT_KEY, account.id))
+    }
+
+    @Transaction
+    open suspend fun createLocalPlanner(account: AccountEntity, planner: PlannerEntity) {
+        check(activeAccountId() == null) { "Este dispositivo já possui um Planner" }
         upsertAccount(account)
         upsertPlanner(planner)
         upsertMetadata(SessionMetadataEntity(ACTIVE_ACCOUNT_KEY, account.id))

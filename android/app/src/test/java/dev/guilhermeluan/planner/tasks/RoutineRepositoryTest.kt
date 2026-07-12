@@ -61,7 +61,7 @@ class RoutineRepositoryTest {
         assertEquals(1, plan.routines.size)
         assertEquals("Caminhar", plan.routines.single().title)
         assertEquals(LocalTime.of(7, 30), plan.routines.single().time)
-        assertEquals(1, database.plannerDao().pendingOperations(account.id).size)
+        assertTrue(database.plannerDao().pendingOperations(account.id).isEmpty())
     }
 
     @Test
@@ -87,7 +87,7 @@ class RoutineRepositoryTest {
         advanceUntilIdle()
         val plan = repository.observeDay(account.id, day).first()
         assertEquals(RoutineOccurrenceStatus.DONE, plan.routines.single().status)
-        assertTrue(database.plannerDao().pendingOperations(account.id).any { it.entityType == "routine_occurrence" })
+        assertTrue(database.plannerDao().pendingOperations(account.id).isEmpty())
     }
 
     private companion object {

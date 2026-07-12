@@ -1,6 +1,6 @@
 # Ciclo de vida das Contas no painel administrativo
 
-Status: ready-for-human
+Status: complete
 
 ## What to build
 
@@ -10,13 +10,13 @@ O comportamento deve ser protegido tanto no fluxo HTML quanto nas operações de
 
 ## Acceptance criteria
 
-- [ ] Somente uma sessão válida de Conta administradora acessa as páginas e ações administrativas.
-- [ ] O painel lista Contas com estado, último acesso e última sincronização sem exibir conteúdo de Planner.
-- [ ] A Conta administradora consegue criar uma Conta com nome de usuário, senha temporária e Fuso da Conta; nomes duplicados são rejeitados de forma legível.
-- [ ] A Conta administradora consegue ativar, desativar e redefinir a senha de uma Conta, com a troca de senha marcada como obrigatória após redefinição.
-- [ ] Contas desativadas não conseguem iniciar novas sessões.
-- [ ] Logout invalida a sessão administrativa e o painel não fica acessível por reutilização da sessão.
-- [ ] Testes HTTP/HTML cobrem autorização, criação, duplicidade, listagem, alterações de estado, redefinição, logout e ausência de dados de Planner.
+- [x] Somente uma sessão válida de Conta administradora acessa as páginas e ações administrativas.
+- [x] O painel lista Contas com estado, último acesso e última sincronização sem exibir conteúdo de Planner.
+- [x] A Conta administradora consegue criar uma Conta com nome de usuário, senha temporária e Fuso da Conta; nomes duplicados são rejeitados de forma legível.
+- [x] A Conta administradora consegue ativar, desativar e redefinir a senha de uma Conta, com a troca de senha marcada como obrigatória após redefinição.
+- [x] Contas desativadas não conseguem iniciar novas sessões.
+- [x] Logout invalida a sessão administrativa e o painel não fica acessível por reutilização da sessão.
+- [x] Testes HTTP/HTML cobrem autorização, criação, duplicidade, listagem, alterações de estado, redefinição, logout e ausência de dados de Planner.
 
 ## Blocked by
 

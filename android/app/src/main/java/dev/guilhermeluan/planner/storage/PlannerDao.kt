@@ -11,6 +11,8 @@ abstract class PlannerDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun upsertTask(task: TaskEntity)
 
+    suspend fun writeLocalTask(task: TaskEntity) = upsertTask(task)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun enqueue(operation: OutboxEntity)
 
@@ -54,6 +56,12 @@ abstract class PlannerDao {
 
     @Query("DELETE FROM outbox WHERE operationId = :operationId")
     abstract suspend fun deleteOperation(operationId: String)
+
+    @Query("DELETE FROM outbox WHERE accountId = :accountId")
+    abstract suspend fun clearOutbox(accountId: String)
+
+    @Query("DELETE FROM sync_state WHERE accountId = :accountId")
+    abstract suspend fun clearSyncState(accountId: String)
 
     @Query("UPDATE outbox SET lastError = :message WHERE operationId = :operationId")
     abstract suspend fun markOperationFailed(operationId: String, message: String)

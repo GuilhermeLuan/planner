@@ -1,6 +1,6 @@
 # Sync incremental tracer bullet com Tarefa
 
-Status: ready-for-agent
+Status: complete
 
 ## What to build
 
@@ -10,14 +10,14 @@ Este slice estabelece o contrato reutilizável de push/pull, IDs idempotentes, v
 
 ## Acceptance criteria
 
-- [ ] Criar ou alterar uma Tarefa offline atualiza imediatamente a leitura local e cria uma operação pendente com identificador idempotente.
-- [ ] O WorkManager envia operações quando houver rede, aplica retry com backoff e só remove uma operação após confirmação do backend.
-- [ ] O backend aceita um lote de operações, persiste a mudança por Conta e retorna o resultado de cada identificador sem duplicar reenvios.
-- [ ] Pull com cursor retorna somente mudanças posteriores, informa o próximo cursor e suporta lotes menores que o conjunto total.
-- [ ] Dois clientes da mesma Conta conseguem observar a mudança após push/pull; um cliente de outra Conta nunca recebe a entidade.
-- [ ] Alterações concorrentes sobre a mesma Tarefa seguem a política de última versão aceita pelo servidor e deixam o estado final observável nos clientes.
-- [ ] A UI expõe estado de sincronização e falha recuperável sem bloquear a operação offline.
-- [ ] Testes de contrato e de integração com dois clientes lógicos cobrem push, pull, cursor, retry idempotente, isolamento, concorrência e recuperação após ausência de rede.
+- [x] Criar ou alterar uma Tarefa offline atualiza imediatamente a leitura local e cria uma operação pendente com identificador idempotente.
+- [x] O WorkManager envia operações quando houver rede, aplica retry com backoff e só remove uma operação após confirmação do backend.
+- [x] O backend aceita um lote de operações, persiste a mudança por Conta e retorna o resultado de cada identificador sem duplicar reenvios.
+- [x] Pull com cursor retorna somente mudanças posteriores, informa o próximo cursor e suporta lotes menores que o conjunto total.
+- [x] Dois clientes da mesma Conta conseguem observar a mudança após push/pull; um cliente de outra Conta nunca recebe a entidade.
+- [x] Alterações concorrentes sobre a mesma Tarefa seguem a política de última versão aceita pelo servidor e deixam o estado final observável nos clientes.
+- [x] A UI expõe estado de sincronização e falha recuperável sem bloquear a operação offline.
+- [x] Testes de contrato e de integração com dois clientes lógicos cobrem push, pull, cursor, retry idempotente, isolamento, concorrência e recuperação após ausência de rede.
 
 ## Blocked by
 

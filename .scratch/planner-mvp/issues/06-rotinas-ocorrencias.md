@@ -1,6 +1,6 @@
 # Rotinas e Ocorrências de rotina
 
-Status: ready-for-agent
+Status: complete
 
 ## What to build
 
@@ -10,13 +10,13 @@ Editar, pausar/arquivar e restaurar a Rotina não pode apagar o histórico já r
 
 ## Acceptance criteria
 
-- [ ] A pessoa consegue criar e editar uma Rotina com título, dias da semana, data de início e horário opcional.
-- [ ] Ocorrências aparecem automaticamente somente nos Dias escolhidos e a partir da data de início.
-- [ ] Cada Ocorrência de rotina mantém estado independente entre Dias, com transições pendente, concluída, pulada e de volta a pendente.
-- [ ] Arquivar ou pausar uma Rotina impede novas aparições futuras sem apagar ocorrências ou histórico existentes.
-- [ ] Restaurar uma Rotina arquivada volta a gerar ocorrências futuras conforme sua configuração.
-- [ ] Alterações de Rotina e ocorrência funcionam offline, entram na outbox e são observáveis em outro cliente após push/pull.
-- [ ] Testes de domínio, contrato e Compose cobrem recorrência, início, ordenação, estados independentes, arquivamento, restauração e sincronização.
+- [x] A pessoa consegue criar e editar uma Rotina com título, dias da semana, data de início e horário opcional.
+- [x] Ocorrências aparecem automaticamente somente nos Dias escolhidos e a partir da data de início.
+- [x] Cada Ocorrência de rotina mantém estado independente entre Dias, com transições pendente, concluída, pulada e de volta a pendente.
+- [x] Arquivar ou pausar uma Rotina impede novas aparições futuras sem apagar ocorrências ou histórico existentes.
+- [x] Restaurar uma Rotina arquivada volta a gerar ocorrências futuras conforme sua configuração.
+- [x] Alterações de Rotina e ocorrência funcionam offline, entram na outbox e são observáveis em outro cliente após push/pull.
+- [x] Testes de domínio, contrato e Compose cobrem recorrência, início, ordenação, estados independentes, arquivamento, restauração e sincronização.
 
 ## Blocked by
 

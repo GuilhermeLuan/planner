@@ -13,8 +13,12 @@ abstract class RoutineDao {
     @Upsert
     protected abstract suspend fun upsertRoutine(routine: RoutineEntity)
 
+    suspend fun writeLocalRoutine(routine: RoutineEntity) = upsertRoutine(routine)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun upsertOccurrence(occurrence: RoutineOccurrenceEntity)
+
+    suspend fun writeLocalOccurrence(occurrence: RoutineOccurrenceEntity) = upsertOccurrence(occurrence)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun enqueue(operation: OutboxEntity)

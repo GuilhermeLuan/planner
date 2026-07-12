@@ -1,6 +1,6 @@
 # Fuso da Conta, notificações locais e acessibilidade
 
-Status: ready-for-agent
+Status: complete
 
 ## What to build
 
@@ -10,12 +10,12 @@ Completar também o acabamento transversal da interface Android com tema rosa ú
 
 ## Acceptance criteria
 
-- [ ] O primeiro bootstrap sugere o fuso do dispositivo e a Conta consegue alterá-lo por uma configuração persistida e sincronizada.
-- [ ] Dias, horários, recorrências e notificações usam o Fuso da Conta, inclusive em viradas de data relevantes.
-- [ ] Tarefas e Rotinas com horário podem ser configuradas para gerar notificações locais no Android.
-- [ ] Notificações são canceladas ou atualizadas quando o item muda, é concluído ou arquivado, e são reconstruídas após reinicialização ou sincronização.
-- [ ] O tema rosa funciona em modo claro e escuro seguindo o sistema, mantendo contraste, foco, erro e leitura acessíveis.
-- [ ] Testes cobrem fuso inicial e alterado, fronteiras de data, agendamento, reconstrução, cancelamento e estados de acessibilidade observáveis na UI.
+- [x] O primeiro bootstrap sugere o fuso do dispositivo e a Conta consegue alterá-lo por uma configuração persistida e sincronizada.
+- [x] Dias, horários, recorrências e notificações usam o Fuso da Conta, inclusive em viradas de data relevantes.
+- [x] Tarefas e Rotinas com horário podem ser configuradas para gerar notificações locais no Android.
+- [x] Notificações são canceladas ou atualizadas quando o item muda, é concluído ou arquivado, e são reconstruídas após reinicialização ou sincronização.
+- [x] O tema rosa funciona em modo claro e escuro seguindo o sistema, mantendo contraste, foco, erro e leitura acessíveis.
+- [x] Testes cobrem fuso inicial e alterado, fronteiras de data, agendamento, reconstrução, cancelamento e estados de acessibilidade observáveis na UI.
 
 ## Blocked by
 

@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues e PRDs vivem como arquivos Markdown em `.scratch/`. See `docs/agents/issue-tracker.md`.
+Issues e PRDs vivem no GitHub Issues deste repositório; use a CLI `gh`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

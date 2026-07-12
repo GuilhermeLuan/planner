@@ -1,6 +1,6 @@
 # Bootstrap do serviço e persistência da instalação
 
-Status: ready-for-human
+Status: complete
 
 ## What to build
 
@@ -10,12 +10,12 @@ O slice atravessa serviço, persistência, configuração de deploy e smoke test
 
 ## Acceptance criteria
 
-- [ ] Uma instalação nova sobe com Docker Compose e responde `200` no health check.
-- [ ] A primeira inicialização cria a Conta administradora e seu Planner usando as credenciais configuradas, sem recriá-la em reinicializações posteriores.
-- [ ] Migrações são aplicadas automaticamente e preservam integridade e isolamento por Conta.
-- [ ] Recriar o container mantendo o volume preserva o banco e os dados de bootstrap.
-- [ ] A configuração e a documentação deixam claro o suporte a HTTP local e a recomendação de HTTPS para acesso em rede.
-- [ ] Existe um smoke test automatizado para inicialização, health check, bootstrap idempotente e persistência após recriação do serviço.
+- [x] Uma instalação nova sobe com Docker Compose e responde `200` no health check.
+- [x] A primeira inicialização cria a Conta administradora e seu Planner usando as credenciais configuradas, sem recriá-la em reinicializações posteriores.
+- [x] Migrações são aplicadas automaticamente e preservam integridade e isolamento por Conta.
+- [x] Recriar o container mantendo o volume preserva o banco e os dados de bootstrap.
+- [x] A configuração e a documentação deixam claro o suporte a HTTP local e a recomendação de HTTPS para acesso em rede.
+- [x] Existe um smoke test automatizado para inicialização, health check, bootstrap idempotente e persistência após recriação do serviço.
 
 ## Blocked by
 

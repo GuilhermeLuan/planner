@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 class DayViewModel(
@@ -49,6 +50,7 @@ class DayViewModel(
         accountId = session.account.id
         plannerId = session.planner.id
         accountTimezone = session.account.timezone
+        selectedDay.value = LocalDate.now(ZoneId.of(accountTimezone))
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             launch {
@@ -56,16 +58,6 @@ class DayViewModel(
                     syncContext?.let {
                         PlannerNotificationScheduler.rebuild(it, tasks, accountTimezone)
                     }
-                }
-            }
-            launch {
-                repository.observePendingOperationCount(session.account.id).collect { count ->
-                    _uiState.update { it.copy(pendingOperations = count) }
-                }
-            }
-            launch {
-                repository.observeSyncError(session.account.id).collect { error ->
-                    _uiState.update { it.copy(syncError = error) }
                 }
             }
             selectedDay.collectLatest { day ->
@@ -98,7 +90,6 @@ class DayViewModel(
                 draft = draft.copy(day = selectedDay.value),
             )
             PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
@@ -111,7 +102,6 @@ class DayViewModel(
             } else {
                 PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
             }
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
@@ -120,7 +110,6 @@ class DayViewModel(
         val planner = plannerId ?: return
         viewModelScope.launch {
             repository.createRoutine(account, planner, draft)
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
@@ -132,7 +121,6 @@ class DayViewModel(
         val account = accountId ?: return
         viewModelScope.launch {
             repository.setRoutineOccurrenceStatus(account, routineId, day, status)
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
@@ -141,7 +129,6 @@ class DayViewModel(
         viewModelScope.launch {
             val task = repository.editTask(account, taskId, title, time)
             PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
@@ -150,7 +137,6 @@ class DayViewModel(
         viewModelScope.launch {
             val task = repository.rescheduleTask(account, taskId, day)
             PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
@@ -159,7 +145,6 @@ class DayViewModel(
         viewModelScope.launch {
             repository.archiveTask(account, taskId)
             syncContext?.let { PlannerNotificationScheduler.cancelTask(it, taskId) }
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
@@ -168,7 +153,6 @@ class DayViewModel(
         viewModelScope.launch {
             val task = repository.restoreTask(account, taskId)
             PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
-            syncContext?.let(dev.guilhermeluan.planner.sync.SyncScheduler::enqueue)
         }
     }
 
