@@ -9,12 +9,10 @@ import androidx.room.RoomDatabase
         PlannerEntity::class,
         SessionMetadataEntity::class,
         TaskEntity::class,
-        OutboxEntity::class,
-        SyncStateEntity::class,
         RoutineEntity::class,
         RoutineOccurrenceEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
@@ -61,6 +59,12 @@ abstract class PlannerDatabase : RoomDatabase() {
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_routine_occurrences_accountId ON routine_occurrences(accountId)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_routine_occurrences_routineId ON routine_occurrences(routineId)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_routine_occurrences_accountId_day ON routine_occurrences(accountId, day)")
+            }
+        }
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS outbox")
+                database.execSQL("DROP TABLE IF EXISTS sync_state")
             }
         }
     }

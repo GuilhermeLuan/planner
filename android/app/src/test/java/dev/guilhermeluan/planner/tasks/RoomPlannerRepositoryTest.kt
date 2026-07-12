@@ -5,7 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.guilhermeluan.planner.session.Account
 import dev.guilhermeluan.planner.session.Planner
-import dev.guilhermeluan.planner.session.RoomSessionStateStore
+import dev.guilhermeluan.planner.testsupport.seed
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -42,7 +42,7 @@ class RoomPlannerRepositoryTest {
     fun `creating a Task offline updates the Day immediately`() = runTest {
         val account = Account("account-1", "gui", "America/Sao_Paulo", false)
         val planner = Planner("planner-1", account.id)
-        RoomSessionStateStore(database).saveActive(account, planner)
+        database.seed(account, planner)
         val repository = RoomPlannerRepository(
             database = database,
             idGenerator = SequenceIdGenerator("task-1", "operation-1"),
@@ -66,7 +66,7 @@ class RoomPlannerRepositoryTest {
     fun `rescheduling moves the same Task to another Day without duplication`() = runTest {
         val account = Account("account-1", "gui", "America/Sao_Paulo", false)
         val planner = Planner("planner-1", account.id)
-        RoomSessionStateStore(database).saveActive(account, planner)
+        database.seed(account, planner)
         val repository = RoomPlannerRepository(
             database,
             SequenceIdGenerator("task-1", "create-operation", "reschedule-operation"),
@@ -91,7 +91,7 @@ class RoomPlannerRepositoryTest {
     fun `archiving and restoring a Task is reversible`() = runTest {
         val account = Account("account-1", "gui", "America/Sao_Paulo", false)
         val planner = Planner("planner-1", account.id)
-        RoomSessionStateStore(database).saveActive(account, planner)
+        database.seed(account, planner)
         val repository = RoomPlannerRepository(
             database,
             SequenceIdGenerator(
@@ -122,7 +122,7 @@ class RoomPlannerRepositoryTest {
     fun `editing changes title and optional time on the same Task`() = runTest {
         val account = Account("account-1", "gui", "America/Sao_Paulo", false)
         val planner = Planner("planner-1", account.id)
-        RoomSessionStateStore(database).saveActive(account, planner)
+        database.seed(account, planner)
         val repository = RoomPlannerRepository(
             database,
             SequenceIdGenerator("task-1", "create-operation", "edit-operation"),

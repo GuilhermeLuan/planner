@@ -5,7 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.guilhermeluan.planner.session.Account
 import dev.guilhermeluan.planner.session.Planner
-import dev.guilhermeluan.planner.session.RoomSessionStateStore
+import dev.guilhermeluan.planner.testsupport.seed
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -43,7 +43,7 @@ class RoutineRepositoryTest {
     fun `routine projects an occurrence on selected weekdays and writes locally`() = runTest {
         val account = Account("account-1", "ana", "America/Sao_Paulo", false)
         val planner = Planner("planner-1", account.id)
-        RoomSessionStateStore(database).saveActive(account, planner)
+        database.seed(account, planner)
         val repository = RoomPlannerRepository(
             database,
             Ids("routine-1", "routine-operation"),
@@ -61,14 +61,13 @@ class RoutineRepositoryTest {
         assertEquals(1, plan.routines.size)
         assertEquals("Caminhar", plan.routines.single().title)
         assertEquals(LocalTime.of(7, 30), plan.routines.single().time)
-        assertTrue(database.plannerDao().pendingOperations(account.id).isEmpty())
     }
 
     @Test
     fun `occurrence status is independent and archiving preserves the recorded occurrence`() = runTest {
         val account = Account("account-1", "ana", "America/Sao_Paulo", false)
         val planner = Planner("planner-1", account.id)
-        RoomSessionStateStore(database).saveActive(account, planner)
+        database.seed(account, planner)
         val repository = RoomPlannerRepository(
             database,
             Ids("routine-1", "create-routine", "occurrence-operation", "archive-operation"),
@@ -87,7 +86,6 @@ class RoutineRepositoryTest {
         advanceUntilIdle()
         val plan = repository.observeDay(account.id, day).first()
         assertEquals(RoutineOccurrenceStatus.DONE, plan.routines.single().status)
-        assertTrue(database.plannerDao().pendingOperations(account.id).isEmpty())
     }
 
     private companion object {

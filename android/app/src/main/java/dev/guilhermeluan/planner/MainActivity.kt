@@ -1,8 +1,11 @@
 package dev.guilhermeluan.planner
 
 import android.Manifest
+import android.content.ContentValues.TAG
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -30,7 +33,6 @@ import dev.guilhermeluan.planner.session.AccountSettingsScreen
 import dev.guilhermeluan.planner.session.OnboardingScreen
 import dev.guilhermeluan.planner.session.PlannerAppUiState
 import dev.guilhermeluan.planner.session.PlannerViewModel
-import dev.guilhermeluan.planner.session.SessionState
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 
 class MainActivity : ComponentActivity() {
@@ -69,6 +71,32 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dayState by dayViewModel.uiState.collectAsStateWithLifecycle()
     var showAccountSettings by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (state !is PlannerAppUiState.Ready) return@rememberLauncherForActivityResult
+        viewModel.exportBackup { result ->
+            result.fold(
+                onSuccess = { json ->
+                    try {
+                        context.contentResolver.openOutputStream(uri)?.use { stream ->
+                            stream.write(json.toString(2).toByteArray())
+                        }
+                        Toast.makeText(context, "Backup exportado com sucesso", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Falha ao escrever backup", e)
+                        Toast.makeText(context, "Erro ao salvar o arquivo", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "Falha ao gerar backup", e)
+                    Toast.makeText(context, "Erro ao gerar o backup", Toast.LENGTH_SHORT).show()
+                },
+            )
+        }
+    }
     when (val current = state) {
         PlannerAppUiState.Loading -> LoadingScreen()
         is PlannerAppUiState.NeedsOnboarding -> OnboardingScreen(
@@ -78,15 +106,16 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
             onCreatePlanner = viewModel::createPlanner,
         )
         is PlannerAppUiState.Ready -> {
-            val session = SessionState.Ready(current.localPlanner.account, current.localPlanner.planner)
-            LaunchedEffect(session.account.id, session.planner.id) { dayViewModel.bind(session) }
+            val localPlanner = current.localPlanner
+            LaunchedEffect(localPlanner.account.id, localPlanner.planner.id) { dayViewModel.bind(localPlanner) }
             if (showAccountSettings) {
                 AccountSettingsScreen(
-                    currentName = session.account.username,
-                    currentTimezone = session.account.timezone,
+                    currentName = localPlanner.account.username,
+                    currentTimezone = localPlanner.account.timezone,
                     onSaveName = { viewModel.saveName(it) },
                     onSaveTimezone = { viewModel.saveTimezone(it); dayViewModel.updateTimezone(it); showAccountSettings = false },
                     onBack = { showAccountSettings = false },
+                    onExportBackup = { exportLauncher.launch("planner-backup.json") },
                 )
             } else {
                 DayScreen(

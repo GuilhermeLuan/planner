@@ -37,39 +37,7 @@ abstract class PlannerDao {
     @Query("SELECT * FROM tasks WHERE accountId = :accountId AND id = :taskId")
     abstract suspend fun task(accountId: String, taskId: String): TaskEntity?
 
-    @Query("SELECT * FROM outbox WHERE accountId = :accountId ORDER BY clientUpdatedAt, operationId")
-    abstract suspend fun pendingOperations(accountId: String): List<OutboxEntity>
+    @Query("SELECT * FROM tasks WHERE accountId = :accountId ORDER BY day, time, title")
+    abstract suspend fun tasksByAccount(accountId: String): List<TaskEntity>
 
-    @Query("DELETE FROM outbox WHERE operationId = :operationId")
-    abstract suspend fun deleteOperation(operationId: String)
-
-    @Query("DELETE FROM outbox WHERE accountId = :accountId")
-    abstract suspend fun clearOutbox(accountId: String)
-
-    @Query("DELETE FROM sync_state WHERE accountId = :accountId")
-    abstract suspend fun clearSyncState(accountId: String)
-
-    @Query("UPDATE outbox SET lastError = :message WHERE operationId = :operationId")
-    abstract suspend fun markOperationFailed(operationId: String, message: String)
-
-    @Query("SELECT COUNT(*) FROM outbox WHERE accountId = :accountId")
-    abstract fun observePendingOperationCount(accountId: String): Flow<Int>
-
-    @Query("SELECT lastError FROM outbox WHERE accountId = :accountId AND lastError IS NOT NULL ORDER BY clientUpdatedAt LIMIT 1")
-    abstract fun observeSyncError(accountId: String): Flow<String?>
-
-    @Query("SELECT cursor FROM sync_state WHERE accountId = :accountId")
-    abstract suspend fun syncCursor(accountId: String): Long?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    protected abstract suspend fun upsertRemoteTasks(tasks: List<TaskEntity>)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    protected abstract suspend fun upsertSyncState(state: SyncStateEntity)
-
-    @androidx.room.Transaction
-    open suspend fun applyPull(tasks: List<TaskEntity>, state: SyncStateEntity) {
-        if (tasks.isNotEmpty()) upsertRemoteTasks(tasks)
-        upsertSyncState(state)
-    }
 }

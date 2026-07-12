@@ -1,23 +1,20 @@
 package dev.guilhermeluan.planner.day
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.guilhermeluan.planner.PlannerApplication
-import dev.guilhermeluan.planner.session.SessionState
+import dev.guilhermeluan.planner.session.LocalPlanner
 import dev.guilhermeluan.planner.tasks.IdGenerator
-import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import dev.guilhermeluan.planner.tasks.TaskDraft
 import dev.guilhermeluan.planner.tasks.RoutineDraft
 import dev.guilhermeluan.planner.tasks.RoutineOccurrenceStatus
-import dev.guilhermeluan.planner.notifications.PlannerNotificationScheduler
+import dev.guilhermeluan.planner.notifications.AndroidReminderAdapter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
@@ -26,9 +23,8 @@ import java.time.ZoneId
 import java.util.UUID
 
 class DayViewModel(
-    private val repository: RoomPlannerRepository,
+    private val dayPlanner: DayPlanner,
     private val initialDay: LocalDate = LocalDate.now(),
-    private val syncContext: Context? = null,
 ) : ViewModel() {
     private val selectedDay = MutableStateFlow(initialDay)
     private val _uiState = MutableStateFlow(
@@ -44,26 +40,23 @@ class DayViewModel(
     private var accountTimezone: String = java.time.ZoneId.systemDefault().id
     private var observeJob: Job? = null
 
-    fun bind(session: SessionState.Ready) {
-        if (accountId == session.account.id && plannerId == session.planner.id && observeJob?.isActive == true) {
+    fun bind(localPlanner: LocalPlanner) {
+        if (accountId == localPlanner.account.id && plannerId == localPlanner.planner.id && observeJob?.isActive == true) {
             return
         }
-        accountId = session.account.id
-        plannerId = session.planner.id
-        accountTimezone = session.account.timezone
+        accountId = localPlanner.account.id
+        plannerId = localPlanner.planner.id
+        accountTimezone = localPlanner.account.timezone
+        dayPlanner.bind(localPlanner.account, localPlanner.planner)
         selectedDay.value = LocalDate.now(ZoneId.of(accountTimezone))
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             launch {
-                repository.observeScheduledTasks(session.account.id).collect { tasks ->
-                    syncContext?.let {
-                        PlannerNotificationScheduler.rebuild(it, tasks, accountTimezone)
-                    }
-                }
+                dayPlanner.rebuildReminders()
             }
             selectedDay.collectLatest { day ->
                 _uiState.update { it.copy(selectedDay = day, isLoading = true) }
-                repository.observeDay(session.account.id, day).collect { plan ->
+                dayPlanner.observeDay(day).collect { plan ->
                     _uiState.update { it.copy(selectedDay = day, plan = plan, isLoading = false) }
                 }
             }
@@ -79,10 +72,9 @@ class DayViewModel(
 
     fun updateTimezone(newTimezone: String) {
         accountTimezone = newTimezone
-        val account = accountId ?: return
+        accountId ?: return
         viewModelScope.launch {
-            val tasks = repository.observeScheduledTasks(account).first()
-            syncContext?.let { PlannerNotificationScheduler.rebuild(it, tasks, accountTimezone) }
+            dayPlanner.updateTimezone(newTimezone)
         }
     }
 
@@ -94,24 +86,14 @@ class DayViewModel(
         val account = accountId ?: return
         val planner = plannerId ?: return
         viewModelScope.launch {
-            val task = repository.createTask(
-                accountId = account,
-                plannerId = planner,
-                draft = draft.copy(day = selectedDay.value),
-            )
-            PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
+            dayPlanner.createTask(draft.copy(day = selectedDay.value))
         }
     }
 
     fun toggleTask(taskId: String, completed: Boolean) {
         val account = accountId ?: return
         viewModelScope.launch {
-            val task = repository.setTaskCompleted(account, taskId, completed)
-            if (completed) {
-                syncContext?.let { PlannerNotificationScheduler.cancelTask(it, taskId) }
-            } else {
-                PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
-            }
+            dayPlanner.setTaskCompleted(taskId, completed)
         }
     }
 
@@ -119,7 +101,7 @@ class DayViewModel(
         val account = accountId ?: return
         val planner = plannerId ?: return
         viewModelScope.launch {
-            repository.createRoutine(account, planner, draft)
+            dayPlanner.createRoutine(draft)
         }
     }
 
@@ -130,39 +112,35 @@ class DayViewModel(
     ) {
         val account = accountId ?: return
         viewModelScope.launch {
-            repository.setRoutineOccurrenceStatus(account, routineId, day, status)
+            dayPlanner.setRoutineOccurrenceStatus(routineId, day, status)
         }
     }
 
     fun editTask(taskId: String, title: String, time: java.time.LocalTime?) {
         val account = accountId ?: return
         viewModelScope.launch {
-            val task = repository.editTask(account, taskId, title, time)
-            PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
+            dayPlanner.editTask(taskId, title, time)
         }
     }
 
     fun rescheduleTask(taskId: String, day: LocalDate) {
         val account = accountId ?: return
         viewModelScope.launch {
-            val task = repository.rescheduleTask(account, taskId, day)
-            PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
+            dayPlanner.rescheduleTask(taskId, day)
         }
     }
 
     fun archiveTask(taskId: String) {
         val account = accountId ?: return
         viewModelScope.launch {
-            repository.archiveTask(account, taskId)
-            syncContext?.let { PlannerNotificationScheduler.cancelTask(it, taskId) }
+            dayPlanner.archiveTask(taskId)
         }
     }
 
     fun restoreTask(taskId: String) {
         val account = accountId ?: return
         viewModelScope.launch {
-            val task = repository.restoreTask(account, taskId)
-            PlannerNotificationScheduler.scheduleTask(syncContext ?: return@launch, task, accountTimezone)
+            dayPlanner.restoreTask(taskId)
         }
     }
 
@@ -171,12 +149,14 @@ class DayViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val idGenerator = IdGenerator { UUID.randomUUID().toString() }
             return DayViewModel(
-                repository = RoomPlannerRepository(
-                    database = application.database,
-                    idGenerator = idGenerator,
-                    clock = Clock.systemUTC(),
+                dayPlanner = DayPlanner(
+                    repository = dev.guilhermeluan.planner.tasks.RoomPlannerRepository(
+                        database = application.database,
+                        idGenerator = idGenerator,
+                        clock = Clock.systemUTC(),
+                    ),
+                    reminders = AndroidReminderAdapter(application),
                 ),
-                syncContext = application,
             ) as T
         }
     }

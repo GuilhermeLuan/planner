@@ -1,5 +1,7 @@
 # Planner — arquitetura inicial
 
+> **Substituída pela ADR 0023.** Este documento preserva o desenho histórico com backend e sincronização; não descreve o runtime vigente.
+
 Status: decisões validadas na sessão de grill; documento-base para o primeiro vertical slice.
 
 O Planner é um sistema pessoal self-hosted. O primeiro cliente é Android nativo, mas o domínio e a API não dependem do Android. Cada instalação atende várias Contas; cada Conta possui um Planner privado.

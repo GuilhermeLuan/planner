@@ -1,5 +1,7 @@
 # Cliente Android offline-first — design de implementação
 
+> **Substituído pela ADR 0023.** As partes de login, servidor, Keystore e sincronização são apenas registro histórico.
+
 Status: aprovado para implementação em 2026-07-11.
 
 ## Recorte
@@ -56,4 +58,3 @@ Compose expõe semântica para nomes, estados, erros e ações. Alvos têm ao me
 - Testes WorkManager para restrição de rede, retry e confirmação.
 - Testes Compose instrumentados para fluxos e semântica observável.
 - Build `assembleDebug`, testes JVM e testes instrumentados quando houver dispositivo/emulador disponível.
-

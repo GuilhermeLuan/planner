@@ -10,8 +10,6 @@ import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
-import org.json.JSONArray
-import org.json.JSONObject
 
 class RoomPlannerRepository(
     database: PlannerDatabase,
@@ -181,7 +179,7 @@ class RoomPlannerRepository(
     ): PlannerTask {
         val current = currentTask(accountId, taskId)
         val updated = current.copy(archived = archived)
-        return persistTask(updated, kind = if (archived) "archive" else "upsert")
+        return persistTask(updated)
     }
 
     private suspend fun currentTask(accountId: String, taskId: String): PlannerTask =
@@ -190,16 +188,13 @@ class RoomPlannerRepository(
     private suspend fun currentRoutine(accountId: String, routineId: String): PlannerRoutine =
         routineDao.routine(accountId, routineId)?.toDomain() ?: error("Rotina não encontrada")
 
-    private suspend fun persistTask(task: PlannerTask, kind: String = "upsert"): PlannerTask {
+    private suspend fun persistTask(task: PlannerTask): PlannerTask {
         val updatedAt = clock.instant().toString()
         dao.writeLocalTask(task.toEntity(updatedAt))
         return task
     }
 
-    private suspend fun persistRoutine(
-        routine: PlannerRoutine,
-        kind: String = "upsert",
-    ): PlannerRoutine {
+    private suspend fun persistRoutine(routine: PlannerRoutine): PlannerRoutine {
         val updatedAt = clock.instant().toString()
         routineDao.writeLocalRoutine(routine.toEntity(updatedAt))
         return routine
@@ -211,19 +206,8 @@ class RoomPlannerRepository(
         status: RoutineStatus,
     ): PlannerRoutine = persistRoutine(
         currentRoutine(accountId, routineId).copy(status = status),
-        kind = if (status == RoutineStatus.ARCHIVED) "archive" else "upsert",
     )
 }
-
-private fun PlannerTask.toPayload(): String = JSONObject()
-    .put("id", id)
-    .put("planner_id", plannerId)
-    .put("title", title)
-    .put("day", day.toString())
-    .put("time", time?.toString() ?: JSONObject.NULL)
-    .put("status", status.name.lowercase())
-    .put("archived", archived)
-    .toString()
 
 private fun PlannerTask.toEntity(updatedAt: String) = TaskEntity(
     id = id,
@@ -290,14 +274,6 @@ private fun PlannedRoutineOccurrence.toEntity(
     updatedAt = updatedAt,
 )
 
-private fun PlannedRoutineOccurrence.toPayload(): String = JSONObject()
-    .put("routine_id", routineId)
-    .put("title", title)
-    .put("day", day.toString())
-    .put("time", time?.toString() ?: JSONObject.NULL)
-    .put("status", status.name.lowercase())
-    .toString()
-
 private fun dev.guilhermeluan.planner.storage.RoutineOccurrenceEntity.toDomain() = PlannedRoutineOccurrence(
     id = id,
     routineId = routineId,
@@ -306,12 +282,3 @@ private fun dev.guilhermeluan.planner.storage.RoutineOccurrenceEntity.toDomain()
     time = time?.let(LocalTime::parse),
     status = RoutineOccurrenceStatus.valueOf(status),
 )
-
-private fun PlannerRoutine.toPayload(): String = JSONObject()
-    .put("planner_id", plannerId)
-    .put("title", title)
-    .put("weekdays", JSONArray(weekdays.sortedBy(DayOfWeek::getValue).map(DayOfWeek::getValue)))
-    .put("start_date", startDate.toString())
-    .put("time", time?.toString() ?: JSONObject.NULL)
-    .put("archived", status == RoutineStatus.ARCHIVED)
-    .toString()

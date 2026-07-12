@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.time.ZoneId
 
 sealed interface PlannerAppUiState {
@@ -22,9 +23,7 @@ sealed interface PlannerAppUiState {
 }
 
 class PlannerViewModel(
-    private val repository: LocalPlannerRepository,
-    private val migration: MigrationToLocal,
-    private val settingsRepository: AccountSettingsRepository,
+    private val lifecycle: PlannerLifecycle,
     private val deviceTimezone: () -> String = { ZoneId.systemDefault().id },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<PlannerAppUiState>(PlannerAppUiState.Loading)
@@ -32,8 +31,7 @@ class PlannerViewModel(
 
     init {
         viewModelScope.launch {
-            runCatching { migration.runIfNeeded() }
-            _uiState.value = repository.restorePlanner()
+            _uiState.value = lifecycle.restore()
                 ?.let(PlannerAppUiState::Ready)
                 ?: PlannerAppUiState.NeedsOnboarding(deviceTimezone())
         }
@@ -43,7 +41,7 @@ class PlannerViewModel(
         val onboarding = _uiState.value as? PlannerAppUiState.NeedsOnboarding ?: return
         _uiState.value = onboarding.copy(isSaving = true, error = null)
         viewModelScope.launch {
-            runCatching { repository.createPlanner(name, onboarding.suggestedTimezone) }
+            runCatching { lifecycle.create(name, onboarding.suggestedTimezone) }
                 .onSuccess { _uiState.value = PlannerAppUiState.Ready(it) }
                 .onFailure { error ->
                     _uiState.update {
@@ -57,12 +55,7 @@ class PlannerViewModel(
         val localPlanner = (_uiState.value as? PlannerAppUiState.Ready)?.localPlanner ?: return
         viewModelScope.launch {
             runCatching {
-                settingsRepository.updateName(localPlanner.account.id, name)
-                _uiState.update { state ->
-                    val ready = state as? PlannerAppUiState.Ready ?: return@update state
-                    val updated = ready.localPlanner.account.copy(username = name)
-                    PlannerAppUiState.Ready(ready.localPlanner.copy(account = updated))
-                }
+                _uiState.value = PlannerAppUiState.Ready(lifecycle.updateName(name))
             }
         }
     }
@@ -71,13 +64,15 @@ class PlannerViewModel(
         val localPlanner = (_uiState.value as? PlannerAppUiState.Ready)?.localPlanner ?: return
         viewModelScope.launch {
             runCatching {
-                settingsRepository.updateTimezone(localPlanner.account.id, timezone)
-                _uiState.update { state ->
-                    val ready = state as? PlannerAppUiState.Ready ?: return@update state
-                    val updated = ready.localPlanner.account.copy(timezone = timezone)
-                    PlannerAppUiState.Ready(ready.localPlanner.copy(account = updated))
-                }
+                _uiState.value = PlannerAppUiState.Ready(lifecycle.updateTimezone(timezone))
             }
+        }
+    }
+
+    fun exportBackup(onResult: (Result<JSONObject>) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching { lifecycle.exportBackup() }
+            onResult(result)
         }
     }
 
@@ -85,9 +80,7 @@ class PlannerViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             PlannerViewModel(
-                application.localPlannerRepository,
-                application.migrationToLocal,
-                application.accountSettingsRepository,
+                application.plannerLifecycle,
             ) as T
     }
 }

@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -32,18 +31,10 @@ abstract class RoutineDao {
     @Query("SELECT * FROM routine_occurrences WHERE accountId = :accountId AND id = :occurrenceId")
     abstract suspend fun occurrence(accountId: String, occurrenceId: String): RoutineOccurrenceEntity?
 
-    @Upsert
-    protected abstract suspend fun upsertRemoteRoutines(routines: List<RoutineEntity>)
+    @Query("SELECT * FROM routines WHERE accountId = :accountId")
+    abstract suspend fun routinesByAccount(accountId: String): List<RoutineEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    protected abstract suspend fun upsertRemoteOccurrences(occurrences: List<RoutineOccurrenceEntity>)
+    @Query("SELECT * FROM routine_occurrences WHERE accountId = :accountId")
+    abstract suspend fun occurrencesByAccount(accountId: String): List<RoutineOccurrenceEntity>
 
-    @Transaction
-    open suspend fun applyPull(
-        routines: List<RoutineEntity>,
-        occurrences: List<RoutineOccurrenceEntity>,
-    ) {
-        if (routines.isNotEmpty()) upsertRemoteRoutines(routines)
-        if (occurrences.isNotEmpty()) upsertRemoteOccurrences(occurrences)
-    }
 }

@@ -13,6 +13,22 @@ import dev.guilhermeluan.planner.tasks.PlannerTask
 import dev.guilhermeluan.planner.tasks.TaskStatus
 import java.time.Clock
 
+interface ReminderAdapter {
+    fun reconcile(task: PlannerTask, timezone: String)
+    fun cancel(taskId: String)
+    fun rebuild(tasks: List<PlannerTask>, timezone: String)
+}
+
+class AndroidReminderAdapter(private val context: Context) : ReminderAdapter {
+    override fun reconcile(task: PlannerTask, timezone: String) =
+        PlannerNotificationScheduler.scheduleTask(context, task, timezone)
+
+    override fun cancel(taskId: String) = PlannerNotificationScheduler.cancelTask(context, taskId)
+
+    override fun rebuild(tasks: List<PlannerTask>, timezone: String) =
+        PlannerNotificationScheduler.rebuild(context, tasks, timezone)
+}
+
 object PlannerNotificationScheduler {
     const val CHANNEL_ID = "planner-reminders"
     private const val EXTRA_TITLE = "title"

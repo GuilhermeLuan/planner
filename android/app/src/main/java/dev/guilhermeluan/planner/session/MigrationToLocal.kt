@@ -11,7 +11,6 @@ class MigrationToLocal(
     private val clearSecrets: suspend () -> Unit = {},
 ) {
     private val sessionDao = database.sessionDao()
-    private val plannerDao = database.plannerDao()
 
     suspend fun runIfNeeded() {
         val accountId = sessionDao.activeAccountId() ?: return
@@ -25,8 +24,6 @@ class MigrationToLocal(
         val trimmedName = account.username.trim()
         if (trimmedName.isEmpty()) {
             sessionDao.clearActiveAccess()
-            plannerDao.clearOutbox(accountId)
-            plannerDao.clearSyncState(accountId)
             sessionDao.clearMetadata(BLOCKED_REASON_KEY)
             clearServerConfig()
             clearSecrets()
@@ -35,8 +32,6 @@ class MigrationToLocal(
 
         sessionDao.updateAccount(accountId, trimmedName, timezone, mustChangePassword = false)
 
-        plannerDao.clearOutbox(accountId)
-        plannerDao.clearSyncState(accountId)
         sessionDao.clearMetadata(BLOCKED_REASON_KEY)
 
         clearServerConfig()

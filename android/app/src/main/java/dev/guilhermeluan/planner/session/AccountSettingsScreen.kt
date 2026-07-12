@@ -34,6 +34,7 @@ fun AccountSettingsScreen(
     onSaveName: (String) -> Unit,
     onSaveTimezone: (String) -> Unit,
     onBack: () -> Unit,
+    onExportBackup: () -> Unit = {},
     detectedTimezone: String = AccountTimezones.detected(),
     modifier: Modifier = Modifier,
 ) {
@@ -117,6 +118,27 @@ fun AccountSettingsScreen(
                         text = "Salvar fuso",
                         onClick = { onSaveTimezone(normalizedTimezone) },
                         enabled = normalizedTimezone.isNotEmpty() && timezoneError == null,
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("Backup", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Exportar todos os dados do Planner em um arquivo JSON.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    PlannerPrimaryButton(
+                        text = "Exportar backup",
+                        onClick = onExportBackup,
                     )
                 }
             }

@@ -4,13 +4,11 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.guilhermeluan.planner.storage.AccountEntity
-import dev.guilhermeluan.planner.storage.OutboxEntity
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.storage.PlannerEntity
 import dev.guilhermeluan.planner.storage.RoutineEntity
 import dev.guilhermeluan.planner.storage.RoutineOccurrenceEntity
 import dev.guilhermeluan.planner.storage.SessionMetadataEntity
-import dev.guilhermeluan.planner.storage.SyncStateEntity
 import dev.guilhermeluan.planner.storage.TaskEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -87,12 +85,6 @@ class MigrationToLocalTest {
         val occurrences = database.routineDao().observeOccurrences("account-1", "2026-07-12").first()
         assertEquals(1, occurrences.size)
         assertEquals("DONE", occurrences.single().status)
-
-        val remainingOutbox = database.plannerDao().pendingOperations("account-1")
-        assertEquals(0, remainingOutbox.size)
-
-        val syncCursor = database.plannerDao().syncCursor("account-1")
-        assertNull(syncCursor)
 
         assertEquals("1", database.sessionDao().metadata("migration_local_v1"))
     }
@@ -186,9 +178,6 @@ class MigrationToLocalTest {
         val tasks = database.plannerDao().observeTasks("account-1", "2026-07-12").first()
         assertEquals(1, tasks.size)
 
-        val outbox = database.plannerDao().pendingOperations("account-1")
-        assertEquals(0, outbox.size)
-
         assertEquals("1", database.sessionDao().metadata("migration_local_v1"))
     }
 
@@ -220,14 +209,5 @@ class MigrationToLocalTest {
             RoutineOccurrenceEntity("routine-1:2026-07-12", "account-1", "routine-1", "Caminhar", "2026-07-12", "07:30", "DONE", 1, "2026-07-12T07:30:00Z"),
         )
 
-        val db = database.openHelper.writableDatabase
-        db.execSQL(
-            """INSERT INTO outbox (operationId, accountId, entityType, entityId, kind, payloadJson, clientUpdatedAt)
-               VALUES ('op-1', 'account-1', 'task', 'task-1', 'upsert', '{}', '2026-07-12T10:00:00Z')""",
-        )
-        db.execSQL(
-            """INSERT INTO sync_state (accountId, cursor, lastSyncAt)
-               VALUES ('account-1', 5, '2026-07-12T10:00:00Z')""",
-        )
     }
 }
