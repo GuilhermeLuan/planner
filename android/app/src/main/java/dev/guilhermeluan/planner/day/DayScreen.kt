@@ -66,8 +66,6 @@ data class DayUiState(
     val selectedDay: LocalDate,
     val plan: DayPlan,
     val isLoading: Boolean = false,
-    val syncError: String? = null,
-    val pendingOperations: Int = 0,
 )
 
 @Composable
@@ -76,7 +74,6 @@ fun DayScreen(
     onSelectDay: (LocalDate) -> Unit,
     onCreateTask: (TaskDraft) -> Unit,
     onToggleTask: (String, Boolean) -> Unit,
-    onLogout: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onCreateRoutine: (RoutineDraft) -> Unit = {},
     onToggleRoutine: (String, LocalDate, RoutineOccurrenceStatus) -> Unit = { _, _, _ -> },
@@ -128,11 +125,7 @@ fun DayScreen(
                     )
                 }
                 item {
-                    DaySummary(
-                        plan = plan,
-                        pendingOperations = state.pendingOperations,
-                        syncError = state.syncError,
-                    )
+                    DaySummary(plan = plan)
                 }
                 item {
                     DaySection(title = "Rotinas") {
@@ -494,7 +487,7 @@ private fun DayRibbon(
 }
 
 @Composable
-private fun DaySummary(plan: DayPlan, pendingOperations: Int, syncError: String?) {
+private fun DaySummary(plan: DayPlan) {
     val completed = plan.tasks.count { it.status == TaskStatus.DONE }
     Surface(
         modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
@@ -508,14 +501,9 @@ private fun DaySummary(plan: DayPlan, pendingOperations: Int, syncError: String?
             Column(modifier = Modifier.weight(1f)) {
                 Text("Fita do Dia", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    syncError ?: if (pendingOperations > 0) {
-                        "$pendingOperations alteração(ões) aguardando sincronização"
-                    } else {
-                        "Uma sequência leve para hoje"
-                    },
+                    "Uma sequência leve para hoje",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (syncError != null) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(

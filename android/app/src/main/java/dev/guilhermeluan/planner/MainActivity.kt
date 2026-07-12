@@ -58,7 +58,7 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
             if (showAccountSettings) {
                 AccountSettingsScreen(
                     currentTimezone = session.account.timezone,
-                    onSaveTimezone = { showAccountSettings = false },
+                    onSaveTimezone = { viewModel.saveTimezone(it); showAccountSettings = false },
                     onBack = { showAccountSettings = false },
                 )
             } else {

@@ -61,7 +61,7 @@ class DayViewModel(
                 }
             }
             selectedDay.collectLatest { day ->
-                _uiState.update { it.copy(selectedDay = day, isLoading = true, syncError = null) }
+                _uiState.update { it.copy(selectedDay = day, isLoading = true) }
                 repository.observeDay(session.account.id, day).collect { plan ->
                     _uiState.update { it.copy(selectedDay = day, plan = plan, isLoading = false) }
                 }

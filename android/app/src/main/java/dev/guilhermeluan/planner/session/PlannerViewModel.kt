@@ -24,6 +24,7 @@ sealed interface PlannerAppUiState {
 class PlannerViewModel(
     private val repository: LocalPlannerRepository,
     private val migration: MigrationToLocal,
+    private val settingsRepository: AccountSettingsRepository,
     private val deviceTimezone: () -> String = { ZoneId.systemDefault().id },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<PlannerAppUiState>(PlannerAppUiState.Loading)
@@ -52,9 +53,27 @@ class PlannerViewModel(
         }
     }
 
+    fun saveTimezone(timezone: String) {
+        val localPlanner = (_uiState.value as? PlannerAppUiState.Ready)?.localPlanner ?: return
+        viewModelScope.launch {
+            runCatching {
+                settingsRepository.updateTimezone(localPlanner.account.id, timezone)
+                _uiState.update { state ->
+                    val ready = state as? PlannerAppUiState.Ready ?: return@update state
+                    val updated = ready.localPlanner.account.copy(timezone = timezone)
+                    PlannerAppUiState.Ready(ready.localPlanner.copy(account = updated))
+                }
+            }
+        }
+    }
+
     class Factory(private val application: PlannerApplication) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlannerViewModel(application.localPlannerRepository, application.migrationToLocal) as T
+            PlannerViewModel(
+                application.localPlannerRepository,
+                application.migrationToLocal,
+                application.accountSettingsRepository,
+            ) as T
     }
 }

@@ -1,7 +1,6 @@
 package dev.guilhermeluan.planner.tasks
 
 import dev.guilhermeluan.planner.storage.PlannerDatabase
-import dev.guilhermeluan.planner.storage.OutboxEntity
 import dev.guilhermeluan.planner.storage.TaskEntity
 import dev.guilhermeluan.planner.storage.RoutineOccurrenceEntity
 import kotlinx.coroutines.flow.Flow
@@ -61,12 +60,6 @@ class RoomPlannerRepository(
             archivedTasks = archivedTasks.map(TaskEntity::toDomain),
         )
     }
-
-    fun observePendingOperationCount(accountId: String): Flow<Int> =
-        dao.observePendingOperationCount(accountId)
-
-    fun observeSyncError(accountId: String): Flow<String?> =
-        dao.observeSyncError(accountId)
 
     fun observeScheduledTasks(accountId: String): Flow<List<PlannerTask>> =
         dao.observeScheduledTasks(accountId).map { tasks -> tasks.map(TaskEntity::toDomain) }

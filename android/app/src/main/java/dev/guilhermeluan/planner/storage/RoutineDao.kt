@@ -20,24 +20,6 @@ abstract class RoutineDao {
 
     suspend fun writeLocalOccurrence(occurrence: RoutineOccurrenceEntity) = upsertOccurrence(occurrence)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    protected abstract suspend fun enqueue(operation: OutboxEntity)
-
-    @Transaction
-    open suspend fun writeRoutineMutation(routine: RoutineEntity, operation: OutboxEntity) {
-        upsertRoutine(routine)
-        enqueue(operation)
-    }
-
-    @Transaction
-    open suspend fun writeOccurrenceMutation(
-        occurrence: RoutineOccurrenceEntity,
-        operation: OutboxEntity,
-    ) {
-        upsertOccurrence(occurrence)
-        enqueue(operation)
-    }
-
     @Query("SELECT * FROM routines WHERE accountId = :accountId")
     abstract fun observeRoutines(accountId: String): Flow<List<RoutineEntity>>
 

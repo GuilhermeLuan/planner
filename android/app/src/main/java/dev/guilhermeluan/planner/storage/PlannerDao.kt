@@ -13,20 +13,6 @@ abstract class PlannerDao {
 
     suspend fun writeLocalTask(task: TaskEntity) = upsertTask(task)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    protected abstract suspend fun enqueue(operation: OutboxEntity)
-
-    @androidx.room.Transaction
-    open suspend fun writeTaskMutation(task: TaskEntity, operation: OutboxEntity) {
-        upsertTask(task)
-        enqueue(operation)
-    }
-
-    @androidx.room.Transaction
-    open suspend fun writeAccountSettingsMutation(operation: OutboxEntity) {
-        enqueue(operation)
-    }
-
     @Query(
         """
         SELECT * FROM tasks

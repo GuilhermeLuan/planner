@@ -2,6 +2,7 @@ package dev.guilhermeluan.planner
 
 import android.app.Application
 import androidx.room.Room
+import dev.guilhermeluan.planner.session.AccountSettingsRepository
 import dev.guilhermeluan.planner.session.AndroidKeystoreSecretStore
 import dev.guilhermeluan.planner.session.LocalPlannerRepository
 import dev.guilhermeluan.planner.session.MigrationToLocal
@@ -16,6 +17,7 @@ class PlannerApplication : Application() {
             .build()
     }
     val localPlannerRepository by lazy { LocalPlannerRepository(database) }
+    val accountSettingsRepository by lazy { AccountSettingsRepository(database) }
     val migrationToLocal by lazy {
         MigrationToLocal(
             database = database,
