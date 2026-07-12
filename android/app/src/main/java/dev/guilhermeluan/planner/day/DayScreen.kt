@@ -1,6 +1,7 @@
 package dev.guilhermeluan.planner.day
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,7 @@ import java.util.Locale
 
 data class DayUiState(
     val selectedDay: LocalDate,
+    val today: LocalDate = selectedDay,
     val plan: DayPlan,
     val isLoading: Boolean = false,
 )
@@ -88,7 +90,7 @@ fun DayScreen(
     var draftTime by rememberSaveable { mutableStateOf("") }
     var showCreateRoutine by rememberSaveable { mutableStateOf(false) }
     var routineTitle by rememberSaveable { mutableStateOf("") }
-    var routineStartDate by rememberSaveable { mutableStateOf(state.selectedDay.toString()) }
+    var routineStartDate by rememberSaveable { mutableStateOf(BrazilianDate.format(state.selectedDay)) }
     var routineTime by rememberSaveable { mutableStateOf("") }
     var routineWeekdays by remember { mutableStateOf(setOf(state.selectedDay.dayOfWeek)) }
     var showCalendar by rememberSaveable { mutableStateOf(false) }
@@ -96,8 +98,7 @@ fun DayScreen(
     var reschedulingTask by remember { mutableStateOf<PlannerTask?>(null) }
     val selectedDay = state.selectedDay
     val plan = state.plan
-    val scheduledTasks = plan.tasks.filter { it.time != null }
-    val untimedTasks = plan.tasks.filter { it.time == null }
+    val tasks = DayTasks.ordered(plan.tasks)
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -112,8 +113,10 @@ fun DayScreen(
                 item {
                     DayHeader(
                         selectedDay = selectedDay,
+                        today = state.today,
                         onPrevious = { onSelectDay(selectedDay.minusDays(1)) },
                         onNext = { onSelectDay(selectedDay.plusDays(1)) },
+                        onToday = { onSelectDay(state.today) },
                         onOpenSettings = onOpenSettings,
                         onOpenCalendar = { showCalendar = true },
                     )
@@ -121,6 +124,7 @@ fun DayScreen(
                 item {
                     DayRibbon(
                         selectedDay = selectedDay,
+                        today = state.today,
                         onSelectDay = onSelectDay,
                     )
                 }
@@ -132,7 +136,7 @@ fun DayScreen(
                         Button(
                             onClick = {
                                 routineTitle = ""
-                                routineStartDate = selectedDay.toString()
+                                routineStartDate = BrazilianDate.format(selectedDay)
                                 routineTime = ""
                                 routineWeekdays = setOf(selectedDay.dayOfWeek)
                                 showCreateRoutine = true
@@ -153,33 +157,12 @@ fun DayScreen(
                         }
                     }
                 }
-                if (scheduledTasks.isNotEmpty()) {
-                    item {
-                        DaySection(title = "Tarefas com horário") {
-                            scheduledTasks.forEach { task ->
-                                TaskRow(
-                                    task = task,
-                                    onToggleTask = onToggleTask,
-                                    onEditTask = { editingTask = it },
-                                    onRescheduleTask = { reschedulingTask = it },
-                                    onArchiveTask = onArchiveTask,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    item {
-                        DaySection(title = "Tarefas com horário") {
-                            EmptySectionText("Nenhuma tarefa com horário")
-                        }
-                    }
-                }
                 item {
-                    DaySection(title = "Sem horário") {
-                        if (untimedTasks.isEmpty()) {
+                    DaySection(title = "Tarefas") {
+                        if (tasks.isEmpty()) {
                             EmptySectionText("Tudo em dia por enquanto")
                         } else {
-                            untimedTasks.forEach { task ->
+                            tasks.forEach { task ->
                                 TaskRow(
                                     task = task,
                                     onToggleTask = onToggleTask,
@@ -275,11 +258,11 @@ fun DayScreen(
     }
 
     if (showCreateRoutine) {
-        val parsedStart = runCatching { LocalDate.parse(routineStartDate.trim()) }.getOrNull()
+        val parsedStart = BrazilianDate.parse(routineStartDate)
         val parsedTime = routineTime.trim().takeIf(String::isNotEmpty)?.let {
             runCatching { LocalTime.parse(it) }.getOrNull()
         }
-        val startError = if (parsedStart == null) "Use uma data como 2026-07-11" else null
+        val startError = if (parsedStart == null) "Use uma data válida como 12/07/2026" else null
         AlertDialog(
             onDismissRequest = { showCreateRoutine = false },
             title = { Text("Nova Rotina") },
@@ -296,7 +279,7 @@ fun DayScreen(
                         value = routineStartDate,
                         onValueChange = { routineStartDate = it },
                         modifier = Modifier.fillMaxWidth().testTag("routine-start-date"),
-                        label = { Text("Começa em (AAAA-MM-DD)") },
+                        label = { Text("Começa em (DD/MM/AAAA)") },
                         isError = startError != null,
                         supportingText = { if (startError != null) Text(startError) },
                         singleLine = true,
@@ -308,21 +291,31 @@ fun DayScreen(
                         tag = "routine-time",
                     )
                     Text("Dias da semana", style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        DayOfWeek.entries.forEach { weekday ->
-                            FilterChip(
-                                selected = weekday in routineWeekdays,
-                                onClick = {
-                                    routineWeekdays = if (weekday in routineWeekdays) {
-                                        routineWeekdays - weekday
-                                    } else {
-                                        routineWeekdays + weekday
-                                    }
-                                },
-                                label = {
-                                    Text(weekday.getDisplayName(TextStyle.NARROW, Locale("pt", "BR")))
-                                },
-                            )
+                    RoutineWeekdays.options.chunked(4).forEach { weekdays ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            weekdays.forEach { weekday ->
+                                FilterChip(
+                                    selected = weekday in routineWeekdays,
+                                    onClick = {
+                                        routineWeekdays = if (weekday in routineWeekdays) {
+                                            routineWeekdays - weekday
+                                        } else {
+                                            routineWeekdays + weekday
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    label = {
+                                        Text(
+                                            weekday.getDisplayName(TextStyle.SHORT, Locale("pt", "BR"))
+                                                .replaceFirstChar(Char::uppercase),
+                                        )
+                                    },
+                                )
+                            }
+                            repeat(4 - weekdays.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -355,6 +348,7 @@ fun DayScreen(
     if (showCalendar) {
         CalendarDialog(
             selectedDay = selectedDay,
+            today = state.today,
             onSelectDay = {
                 onSelectDay(it)
                 showCalendar = false
@@ -389,8 +383,10 @@ fun DayScreen(
 @Composable
 private fun DayHeader(
     selectedDay: LocalDate,
+    today: LocalDate,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    onToday: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenCalendar: () -> Unit,
 ) {
@@ -404,7 +400,11 @@ private fun DayHeader(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "PLANNER · HOJE",
+                    text = if (selectedDay == today) {
+                        "PLANNER · HOJE"
+                    } else {
+                        "PLANNER · ${selectedDay.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.forLanguageTag("pt-BR")).uppercase()}"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -433,6 +433,9 @@ private fun DayHeader(
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onOpenCalendar) { Text("Calendário") }
+            if (selectedDay != today) {
+                TextButton(onClick = onToday) { Text("Hoje") }
+            }
             IconButton(onClick = onNext, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Outlined.ChevronRight, contentDescription = "Próximo dia")
             }
@@ -443,6 +446,7 @@ private fun DayHeader(
 @Composable
 private fun DayRibbon(
     selectedDay: LocalDate,
+    today: LocalDate,
     onSelectDay: (LocalDate) -> Unit,
 ) {
     Row(
@@ -457,9 +461,18 @@ private fun DayRibbon(
         (-3L..3L).forEach { offset ->
             val day = selectedDay.plusDays(offset)
             val selected = day == selectedDay
+            val isToday = day == today
             TextButton(
                 onClick = { onSelectDay(day) },
-                modifier = Modifier.size(width = 42.dp, height = 64.dp),
+                modifier = Modifier
+                    .size(width = 42.dp, height = 64.dp)
+                    .then(
+                        if (isToday) Modifier.border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(14.dp),
+                        ) else Modifier,
+                    ),
                 contentPadding = PaddingValues(0.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.textButtonColors(
@@ -664,6 +677,7 @@ private fun ArchivedTaskRow(task: PlannerTask, onRestoreTask: (String) -> Unit) 
 @Composable
 private fun CalendarDialog(
     selectedDay: LocalDate,
+    today: LocalDate,
     onSelectDay: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -712,7 +726,16 @@ private fun CalendarDialog(
                             } else {
                                 TextButton(
                                     onClick = { onSelectDay(day) },
-                                    modifier = Modifier.weight(1f).size(42.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .size(42.dp)
+                                        .then(
+                                            if (day == today) Modifier.border(
+                                                1.dp,
+                                                MaterialTheme.colorScheme.primary,
+                                                RoundedCornerShape(12.dp),
+                                            ) else Modifier,
+                                        ),
                                     contentPadding = PaddingValues(0.dp),
                                     colors = ButtonDefaults.textButtonColors(
                                         containerColor = if (day == selectedDay) {
@@ -731,6 +754,9 @@ private fun CalendarDialog(
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Fechar") } },
+        dismissButton = {
+            TextButton(onClick = { onSelectDay(today) }) { Text("Hoje") }
+        },
     )
 }
 

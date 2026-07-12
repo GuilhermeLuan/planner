@@ -25,11 +25,13 @@ import java.util.UUID
 class DayViewModel(
     private val dayPlanner: DayPlanner,
     private val initialDay: LocalDate = LocalDate.now(),
+    private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
     private val selectedDay = MutableStateFlow(initialDay)
     private val _uiState = MutableStateFlow(
         DayUiState(
             selectedDay = initialDay,
+            today = initialDay,
             plan = dev.guilhermeluan.planner.tasks.DayPlan(initialDay, emptyList(), emptyList()),
         ),
     )
@@ -48,7 +50,9 @@ class DayViewModel(
         plannerId = localPlanner.planner.id
         accountTimezone = localPlanner.account.timezone
         dayPlanner.bind(localPlanner.account, localPlanner.planner)
-        selectedDay.value = LocalDate.now(ZoneId.of(accountTimezone))
+        val today = CurrentDay.at(clock, ZoneId.of(accountTimezone))
+        selectedDay.value = today
+        _uiState.update { it.copy(today = today) }
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             launch {
@@ -72,6 +76,7 @@ class DayViewModel(
 
     fun updateTimezone(newTimezone: String) {
         accountTimezone = newTimezone
+        _uiState.update { it.copy(today = CurrentDay.at(clock, ZoneId.of(newTimezone))) }
         accountId ?: return
         viewModelScope.launch {
             dayPlanner.updateTimezone(newTimezone)
@@ -157,6 +162,7 @@ class DayViewModel(
                     ),
                     reminders = AndroidReminderAdapter(application),
                 ),
+                clock = Clock.systemUTC(),
             ) as T
         }
     }

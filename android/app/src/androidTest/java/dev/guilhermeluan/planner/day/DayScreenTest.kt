@@ -22,7 +22,7 @@ class DayScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun DaySeparatesPlannedItemsAndCreatesTaskFromItsPublicAction() {
+    fun DayShowsOneTaskSectionAndCreatesTaskFromItsPublicAction() {
         val day = LocalDate.of(2026, 7, 11)
         var created: TaskDraft? = null
         composeRule.setContent {
@@ -42,14 +42,12 @@ class DayScreenTest {
                     onSelectDay = {},
                     onCreateTask = { created = it },
                     onToggleTask = { _, _ -> },
-                    onLogout = {},
                 )
             }
         }
 
         composeRule.onNodeWithText("Rotinas").assertIsDisplayed()
-        composeRule.onNodeWithText("Tarefas com horário").assertIsDisplayed()
-        composeRule.onNodeWithText("Sem horário").assertIsDisplayed()
+        composeRule.onNodeWithText("Tarefas").assertIsDisplayed()
         composeRule.onNodeWithText("Enviar documentos").assertIsDisplayed()
         composeRule.onNodeWithText("Organizar a semana").assertIsDisplayed()
 
@@ -60,6 +58,31 @@ class DayScreenTest {
         composeRule.runOnIdle {
             assertEquals(TaskDraft("Comprar café", day, null), created)
         }
+    }
+
+    @Test
+    fun DayAwayFromTodayOffersAQuickReturn() {
+        val today = LocalDate.of(2026, 7, 12)
+        val selectedDay = today.minusDays(1)
+        var selected: LocalDate? = null
+        composeRule.setContent {
+            PlannerTheme {
+                DayScreen(
+                    state = DayUiState(
+                        selectedDay = selectedDay,
+                        today = today,
+                        plan = DayPlan(selectedDay, emptyList(), emptyList()),
+                    ),
+                    onSelectDay = { selected = it },
+                    onCreateTask = {},
+                    onToggleTask = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Hoje").assertIsDisplayed().performClick()
+
+        composeRule.runOnIdle { assertEquals(today, selected) }
     }
 
     private fun task(

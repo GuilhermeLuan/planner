@@ -22,8 +22,10 @@ class AccountSettingsScreenTest {
         composeRule.setContent {
             PlannerTheme {
                 AccountSettingsScreen(
+                    currentName = "Gui",
                     currentTimezone = "America/Sao_Paulo",
                     detectedTimezone = "America/Sao_Paulo",
+                    onSaveName = {},
                     onSaveTimezone = { saved = it },
                     onBack = {},
                 )
