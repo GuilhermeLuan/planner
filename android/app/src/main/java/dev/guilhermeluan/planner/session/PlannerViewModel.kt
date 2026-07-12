@@ -53,6 +53,20 @@ class PlannerViewModel(
         }
     }
 
+    fun saveName(name: String) {
+        val localPlanner = (_uiState.value as? PlannerAppUiState.Ready)?.localPlanner ?: return
+        viewModelScope.launch {
+            runCatching {
+                settingsRepository.updateName(localPlanner.account.id, name)
+                _uiState.update { state ->
+                    val ready = state as? PlannerAppUiState.Ready ?: return@update state
+                    val updated = ready.localPlanner.account.copy(username = name)
+                    PlannerAppUiState.Ready(ready.localPlanner.copy(account = updated))
+                }
+            }
+        }
+    }
+
     fun saveTimezone(timezone: String) {
         val localPlanner = (_uiState.value as? PlannerAppUiState.Ready)?.localPlanner ?: return
         viewModelScope.launch {

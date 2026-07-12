@@ -29,19 +29,24 @@ import dev.guilhermeluan.planner.ui.components.PlannerPrimaryButton
 
 @Composable
 fun AccountSettingsScreen(
+    currentName: String,
     currentTimezone: String,
+    onSaveName: (String) -> Unit,
     onSaveTimezone: (String) -> Unit,
     onBack: () -> Unit,
     detectedTimezone: String = AccountTimezones.detected(),
     modifier: Modifier = Modifier,
 ) {
+    var name by rememberSaveable(currentName) { mutableStateOf(currentName) }
     var timezone by rememberSaveable(currentTimezone) { mutableStateOf(currentTimezone) }
-    val normalized = timezone.trim()
-    val error = if (normalized.isNotEmpty() && !AccountTimezones.isValid(normalized)) {
+    val normalizedName = name.trim()
+    val normalizedTimezone = timezone.trim()
+    val timezoneError = if (normalizedTimezone.isNotEmpty() && !AccountTimezones.isValid(normalizedTimezone)) {
         "Fuso da Conta inválido"
     } else {
         null
     }
+    val nameError = if (normalizedName.isNotEmpty()) null else "Informe seu nome"
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -70,6 +75,21 @@ fun AccountSettingsScreen(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    Text("Seu nome", style = MaterialTheme.typography.titleLarge)
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        modifier = Modifier.fillMaxWidth().testTag("account-name"),
+                        label = { Text("Nome") },
+                        isError = nameError != null && name.isNotEmpty(),
+                        supportingText = nameError?.let { { Text(it) } },
+                        singleLine = true,
+                    )
+                    PlannerPrimaryButton(
+                        text = "Salvar nome",
+                        onClick = { onSaveName(normalizedName) },
+                        enabled = normalizedName.isNotEmpty(),
+                    )
                     Text("Fuso da Conta", style = MaterialTheme.typography.titleLarge)
                     Text(
                         "Dias, horários e notificações usam este fuso.",
@@ -81,9 +101,9 @@ fun AccountSettingsScreen(
                         onValueChange = { timezone = it },
                         modifier = Modifier.fillMaxWidth().testTag("account-timezone"),
                         label = { Text("Ex.: America/Sao_Paulo") },
-                        isError = error != null,
+                        isError = timezoneError != null,
                         supportingText = {
-                            Text(error ?: "Detectado neste dispositivo: $detectedTimezone")
+                            Text(timezoneError ?: "Detectado neste dispositivo: $detectedTimezone")
                         },
                         singleLine = true,
                     )
@@ -95,8 +115,8 @@ fun AccountSettingsScreen(
                     }
                     PlannerPrimaryButton(
                         text = "Salvar fuso",
-                        onClick = { onSaveTimezone(normalized) },
-                        enabled = normalized.isNotEmpty() && error == null,
+                        onClick = { onSaveTimezone(normalizedTimezone) },
+                        enabled = normalizedTimezone.isNotEmpty() && timezoneError == null,
                     )
                 }
             }

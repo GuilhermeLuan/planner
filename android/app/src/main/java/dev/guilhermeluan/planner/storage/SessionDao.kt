@@ -39,6 +39,9 @@ abstract class SessionDao {
     @Query("UPDATE accounts SET username = :username, timezone = :timezone, mustChangePassword = :mustChangePassword WHERE id = :accountId")
     abstract suspend fun updateAccount(accountId: String, username: String, timezone: String, mustChangePassword: Boolean)
 
+    @Query("UPDATE accounts SET username = :username WHERE id = :accountId")
+    abstract suspend fun updateName(accountId: String, username: String)
+
     @Query("DELETE FROM session_metadata WHERE `key` = 'active_account_id'")
     abstract suspend fun clearActiveAccess()
 

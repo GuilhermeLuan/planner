@@ -14,6 +14,12 @@ class AccountSettingsRepository(
         require(AccountTimezones.isValid(normalized)) { "Fuso da Conta inválido" }
         sessionDao.updateTimezone(accountId, normalized)
     }
+
+    suspend fun updateName(accountId: String, name: String) {
+        val normalized = name.trim()
+        require(normalized.isNotEmpty()) { "Informe o nome" }
+        sessionDao.updateName(accountId, normalized)
+    }
 }
 
 object AccountTimezones {

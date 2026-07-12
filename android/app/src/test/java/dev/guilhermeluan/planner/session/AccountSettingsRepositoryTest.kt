@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertFalse
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -43,6 +44,24 @@ class AccountSettingsRepositoryTest {
         assertEquals("Europe/Lisbon", RoomSessionStateStore(database).readActive()?.first?.timezone)
         val outbox = database.plannerDao().pendingOperations(account.id)
         assertEquals(0, outbox.size)
+    }
+
+    @Test
+    fun `changing name persists locally and rejects empty`() = runTest {
+        val account = Account("account-1", "ana", "America/Sao_Paulo", false)
+        RoomSessionStateStore(database).saveActive(account, Planner("planner-1", account.id))
+        val repository = AccountSettingsRepository(database)
+
+        repository.updateName(account.id, "Mariana")
+
+        val updated = database.sessionDao().account("account-1")!!
+        assertEquals("Mariana", updated.username)
+        assertEquals("America/Sao_Paulo", updated.timezone)
+        assertFalse(updated.mustChangePassword)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            kotlinx.coroutines.runBlocking { repository.updateName(account.id, "  ") }
+        }
     }
 
     @Test

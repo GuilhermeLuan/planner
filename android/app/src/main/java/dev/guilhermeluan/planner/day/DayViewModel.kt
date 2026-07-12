@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Clock
@@ -74,6 +75,15 @@ class DayViewModel(
         plannerId = null
         observeJob?.cancel()
         observeJob = null
+    }
+
+    fun updateTimezone(newTimezone: String) {
+        accountTimezone = newTimezone
+        val account = accountId ?: return
+        viewModelScope.launch {
+            val tasks = repository.observeScheduledTasks(account).first()
+            syncContext?.let { PlannerNotificationScheduler.rebuild(it, tasks, accountTimezone) }
+        }
     }
 
     fun selectDay(day: LocalDate) {

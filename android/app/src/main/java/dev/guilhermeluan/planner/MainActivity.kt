@@ -57,8 +57,10 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
             LaunchedEffect(session.account.id, session.planner.id) { dayViewModel.bind(session) }
             if (showAccountSettings) {
                 AccountSettingsScreen(
+                    currentName = session.account.username,
                     currentTimezone = session.account.timezone,
-                    onSaveTimezone = { viewModel.saveTimezone(it); showAccountSettings = false },
+                    onSaveName = { viewModel.saveName(it) },
+                    onSaveTimezone = { viewModel.saveTimezone(it); dayViewModel.updateTimezone(it); showAccountSettings = false },
                     onBack = { showAccountSettings = false },
                 )
             } else {
