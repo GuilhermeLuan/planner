@@ -140,6 +140,23 @@ class SessionRepositoryTest {
         assertEquals(SessionState.Blocked("Conta desativada"), repository.restoreSession())
         assertEquals(account to planner, state.readActive())
     }
+
+    @Test
+    fun `an unreadable protected token returns the account to login without clearing local identity`() = runTest {
+        val account = Account("account-1", "gui", "America/Sao_Paulo", false)
+        val planner = Planner("planner-1", account.id)
+        val state = InMemorySessionStateStore().apply { saveActive(account, planner) }
+        val secrets = UnreadableSessionSecretStore()
+        val repository = SessionRepository(
+            api = OfflineSessionApi,
+            stateStore = state,
+            secretStore = secrets,
+        )
+
+        assertEquals(SessionState.SignedOut, repository.restoreSession())
+        assertTrue(secrets.wasCleared)
+        assertEquals(account to planner, state.readActive())
+    }
 }
 
 private class StubSessionApi(private val payload: LoginPayload) : SessionApi {
@@ -158,4 +175,16 @@ private class RejectingSessionApi(private val error: Throwable) : SessionApi {
     override suspend fun login(username: String, password: String): LoginPayload = throw error
     override suspend fun changePassword(token: String, password: String) = throw error
     override suspend fun logout(token: String) = throw error
+}
+
+private class UnreadableSessionSecretStore : SessionSecretStore {
+    var wasCleared = false
+
+    override suspend fun writeToken(token: String) = Unit
+
+    override suspend fun readToken(): String = throw IllegalStateException("Android Keystore unavailable")
+
+    override suspend fun clearToken() {
+        wasCleared = true
+    }
 }

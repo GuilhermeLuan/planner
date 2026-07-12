@@ -1,5 +1,7 @@
 package dev.guilhermeluan.planner.session
 
+import kotlinx.coroutines.CancellationException
+
 class SessionRepository(
     private val api: SessionApi,
     private val stateStore: SessionStateStore,
@@ -35,7 +37,18 @@ class SessionRepository(
 
     suspend fun restoreSession(): SessionState {
         stateStore.blockedReason()?.let { return SessionState.Blocked(it) }
-        if (secretStore.readToken() == null) return SessionState.SignedOut
+        val token = try {
+            secretStore.readToken()
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            try {
+                secretStore.clearToken()
+            } catch (clearError: Throwable) {
+                if (clearError is CancellationException) throw clearError
+            }
+            return SessionState.SignedOut
+        }
+        if (token == null) return SessionState.SignedOut
         val (account, planner) = stateStore.readActive() ?: return SessionState.SignedOut
         return if (account.mustChangePassword) {
             SessionState.PasswordChangeRequired(account)
