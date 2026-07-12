@@ -9,6 +9,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import dev.guilhermeluan.planner.diagnostics.PlannerDiagnostics
 import dev.guilhermeluan.planner.tasks.PlannerTask
 import dev.guilhermeluan.planner.tasks.TaskStatus
 import java.time.Clock
@@ -51,11 +55,15 @@ object PlannerNotificationScheduler {
         timezone: String,
         clock: Clock = Clock.systemUTC(),
     ) {
+        val logger = PlannerDiagnostics.logger(context)
+        logger.log("reminder_schedule_requested", task.id, mapOf("timezone" to timezone))
         val time = task.time ?: run {
+            logger.log("reminder_skipped_without_time", task.id)
             cancelTask(context, task.id)
             return
         }
         val trigger = ReminderPlanner.triggerAt(task.day, time, timezone, clock) ?: run {
+            logger.log("reminder_skipped_past", task.id)
             cancelTask(context, task.id)
             return
         }
@@ -69,8 +77,13 @@ object PlannerNotificationScheduler {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        ReminderAlarmScheduler(AndroidReminderAlarmGateway(context, pendingIntent))
+        val mode = ReminderAlarmScheduler(AndroidReminderAlarmGateway(context, pendingIntent))
             .schedule(trigger.toEpochMilli())
+        logger.log(
+            if (mode == ReminderAlarmMode.EXACT) "reminder_scheduled_exact" else "reminder_scheduled_inexact",
+            task.id,
+            mapOf("triggerAt" to trigger.toString(), "timezone" to timezone),
+        )
     }
 
     fun cancelTask(context: Context, taskId: String) {
@@ -83,6 +96,7 @@ object PlannerNotificationScheduler {
         ) ?: return
         context.getSystemService(AlarmManager::class.java).cancel(pendingIntent)
         pendingIntent.cancel()
+        PlannerDiagnostics.logger(context).log("reminder_cancelled", taskId)
     }
 
     fun rebuild(
@@ -108,14 +122,17 @@ interface ReminderAlarmGateway {
 }
 
 class ReminderAlarmScheduler(private val gateway: ReminderAlarmGateway) {
-    fun schedule(triggerAtMillis: Long) {
+    fun schedule(triggerAtMillis: Long): ReminderAlarmMode =
         if (gateway.canScheduleExactAlarms()) {
             gateway.scheduleExact(triggerAtMillis)
+            ReminderAlarmMode.EXACT
         } else {
             gateway.scheduleInexact(triggerAtMillis)
+            ReminderAlarmMode.INEXACT
         }
-    }
 }
+
+enum class ReminderAlarmMode { EXACT, INEXACT }
 
 private class AndroidReminderAlarmGateway(
     context: Context,
@@ -137,9 +154,21 @@ private class AndroidReminderAlarmGateway(
 
 class PlannerReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val logger = PlannerDiagnostics.logger(context)
+        val subjectId = intent.getStringExtra("id")
+        logger.log("reminder_receiver_started", subjectId)
         PlannerNotificationScheduler.ensureChannel(context)
         val title = intent.getStringExtra("title") ?: "Lembrete do Planner"
         val id = intent.getStringExtra("id")?.hashCode() ?: title.hashCode()
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED || !manager.areNotificationsEnabled()) {
+            logger.log("notification_blocked_permission", subjectId)
+            return
+        }
+        if (manager.getNotificationChannel(PlannerNotificationScheduler.CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
+            logger.log("notification_blocked_channel", subjectId)
+            return
+        }
         val notification = Notification.Builder(
             context,
             PlannerNotificationScheduler.CHANNEL_ID,
@@ -149,8 +178,14 @@ class PlannerReminderReceiver : BroadcastReceiver() {
             .setContentText(title)
             .setAutoCancel(true)
             .build()
-        runCatching {
-            context.getSystemService(NotificationManager::class.java).notify(id, notification)
+        try {
+            manager.notify(id, notification)
+            logger.log("notification_published", subjectId)
+        } catch (error: Exception) {
+            logger.log("notification_failed", subjectId, mapOf(
+                "exception" to error.javaClass.simpleName,
+                "message" to (error.message ?: "unknown").take(160),
+            ))
         }
     }
 }

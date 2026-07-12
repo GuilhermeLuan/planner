@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material3.Icon
@@ -35,6 +37,7 @@ fun AccountSettingsScreen(
     onSaveTimezone: (String) -> Unit,
     onBack: () -> Unit,
     onExportBackup: () -> Unit = {},
+    onExportLogs: () -> Unit = {},
     detectedTimezone: String = AccountTimezones.detected(),
     modifier: Modifier = Modifier,
 ) {
@@ -54,7 +57,9 @@ fun AccountSettingsScreen(
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -140,6 +145,24 @@ fun AccountSettingsScreen(
                         text = "Exportar backup",
                         onClick = onExportBackup,
                     )
+                }
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("Diagnóstico", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Exporte informações técnicas sem nomes, títulos ou conteúdo do Planner.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    PlannerPrimaryButton(text = "Exportar logs", onClick = onExportLogs)
                 }
             }
         }

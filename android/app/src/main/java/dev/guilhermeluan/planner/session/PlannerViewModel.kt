@@ -24,6 +24,7 @@ sealed interface PlannerAppUiState {
 
 class PlannerViewModel(
     private val lifecycle: PlannerLifecycle,
+    private val exportDiagnostics: (String) -> ByteArray = { error("Diagnóstico indisponível") },
     private val deviceTimezone: () -> String = { ZoneId.systemDefault().id },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<PlannerAppUiState>(PlannerAppUiState.Loading)
@@ -76,11 +77,18 @@ class PlannerViewModel(
         }
     }
 
+    fun exportDiagnosticLogs(onResult: (Result<ByteArray>) -> Unit) {
+        val timezone = (_uiState.value as? PlannerAppUiState.Ready)?.localPlanner?.account?.timezone
+            ?: return onResult(Result.failure(IllegalStateException("Planner não carregado")))
+        viewModelScope.launch { onResult(runCatching { exportDiagnostics(timezone) }) }
+    }
+
     class Factory(private val application: PlannerApplication) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             PlannerViewModel(
                 application.plannerLifecycle,
+                exportDiagnostics = application.diagnosticExporter::export,
             ) as T
     }
 }

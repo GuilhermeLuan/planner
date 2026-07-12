@@ -57,7 +57,12 @@ private fun NotificationPermissionRequester(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* notificação funciona sem a permissão, só perde o alerta */ }
+    ) { granted ->
+        dev.guilhermeluan.planner.diagnostics.PlannerDiagnostics.logger(context).log(
+            "notification_permission_result",
+            details = mapOf("granted" to granted.toString()),
+        )
+    }
     LaunchedEffect(Unit) {
         if (dev.guilhermeluan.planner.notifications.NotificationPermission.shouldRequest(context)) {
             launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -97,6 +102,28 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
             )
         }
     }
+    val diagnosticExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        viewModel.exportDiagnosticLogs { result ->
+            result.fold(
+                onSuccess = { zip ->
+                    try {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(zip) }
+                        Toast.makeText(context, "Logs exportados com sucesso", Toast.LENGTH_SHORT).show()
+                    } catch (error: Exception) {
+                        Log.e(TAG, "Falha ao escrever diagnóstico", error)
+                        Toast.makeText(context, "Erro ao salvar os logs", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Falha ao gerar diagnóstico", error)
+                    Toast.makeText(context, "Erro ao gerar os logs", Toast.LENGTH_SHORT).show()
+                },
+            )
+        }
+    }
     when (val current = state) {
         PlannerAppUiState.Loading -> LoadingScreen()
         is PlannerAppUiState.NeedsOnboarding -> OnboardingScreen(
@@ -116,6 +143,9 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
                     onSaveTimezone = { viewModel.saveTimezone(it); dayViewModel.updateTimezone(it); showAccountSettings = false },
                     onBack = { showAccountSettings = false },
                     onExportBackup = { exportLauncher.launch("planner-backup.json") },
+                    onExportLogs = {
+                        diagnosticExportLauncher.launch("planner-diagnostico-${java.time.LocalDate.now()}.zip")
+                    },
                 )
             } else {
                 DayScreen(

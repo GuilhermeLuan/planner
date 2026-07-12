@@ -3,6 +3,9 @@ package dev.guilhermeluan.planner
 import android.app.Application
 import androidx.room.Room
 import dev.guilhermeluan.planner.backup.BackupExporter
+import dev.guilhermeluan.planner.diagnostics.AndroidDiagnosticSnapshot
+import dev.guilhermeluan.planner.diagnostics.DiagnosticExporter
+import dev.guilhermeluan.planner.diagnostics.PlannerDiagnostics
 import dev.guilhermeluan.planner.session.AccountSettingsRepository
 import dev.guilhermeluan.planner.session.LocalPlannerRepository
 import dev.guilhermeluan.planner.session.MigrationToLocal
@@ -13,6 +16,11 @@ import java.time.Clock
 import java.time.ZoneId
 
 class PlannerApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        diagnosticLogger.log("app_started")
+    }
+
     val database: PlannerDatabase by lazy {
         Room.databaseBuilder(this, PlannerDatabase::class.java, "planner.db")
             .addMigrations(PlannerDatabase.MIGRATION_1_2)
@@ -22,6 +30,10 @@ class PlannerApplication : Application() {
     val localPlannerRepository by lazy { LocalPlannerRepository(database) }
     val accountSettingsRepository by lazy { AccountSettingsRepository(database) }
     val backupExporter by lazy { BackupExporter(database, Clock.systemUTC()) }
+    val diagnosticLogger by lazy { PlannerDiagnostics.logger(this) }
+    val diagnosticExporter by lazy {
+        DiagnosticExporter(diagnosticLogger, AndroidDiagnosticSnapshot(this), Clock.systemUTC())
+    }
     val migrationToLocal by lazy {
         val legacyCleanup = LegacyRemoteCleanup(this)
         MigrationToLocal(
