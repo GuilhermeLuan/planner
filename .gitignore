@@ -1,0 +1,19 @@
+# Go
+server/bin/
+server/.cache/
+
+# Android
+android/.gradle/
+android/local.properties
+android/**/build/
+android/.idea/
+*.iml
+
+# Local/runtime data
+deploy/.env
+deploy/data/
+deploy/backups/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
