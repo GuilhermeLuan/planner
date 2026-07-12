@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import dev.guilhermeluan.planner.tasks.PlannerTask
 import dev.guilhermeluan.planner.tasks.TaskStatus
 import java.time.Clock
@@ -52,11 +53,8 @@ object PlannerNotificationScheduler {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        context.getSystemService(AlarmManager::class.java).setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            trigger.toEpochMilli(),
-            pendingIntent,
-        )
+        ReminderAlarmScheduler(AndroidReminderAlarmGateway(context, pendingIntent))
+            .schedule(trigger.toEpochMilli())
     }
 
     fun cancelTask(context: Context, taskId: String) {
@@ -84,6 +82,40 @@ object PlannerNotificationScheduler {
                 scheduleTask(context, task, timezone, clock)
             }
         }
+    }
+}
+
+interface ReminderAlarmGateway {
+    fun canScheduleExactAlarms(): Boolean
+    fun scheduleExact(triggerAtMillis: Long)
+    fun scheduleInexact(triggerAtMillis: Long)
+}
+
+class ReminderAlarmScheduler(private val gateway: ReminderAlarmGateway) {
+    fun schedule(triggerAtMillis: Long) {
+        if (gateway.canScheduleExactAlarms()) {
+            gateway.scheduleExact(triggerAtMillis)
+        } else {
+            gateway.scheduleInexact(triggerAtMillis)
+        }
+    }
+}
+
+private class AndroidReminderAlarmGateway(
+    context: Context,
+    private val pendingIntent: PendingIntent,
+) : ReminderAlarmGateway {
+    private val manager = context.getSystemService(AlarmManager::class.java)
+
+    override fun canScheduleExactAlarms(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || manager.canScheduleExactAlarms()
+
+    override fun scheduleExact(triggerAtMillis: Long) {
+        manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+    }
+
+    override fun scheduleInexact(triggerAtMillis: Long) {
+        manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
     }
 }
 
