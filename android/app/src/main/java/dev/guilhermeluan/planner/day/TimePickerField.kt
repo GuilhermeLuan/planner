@@ -1,5 +1,6 @@
 package dev.guilhermeluan.planner.day
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
+import dev.guilhermeluan.planner.ui.theme.PlannerExtras
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -51,7 +53,9 @@ fun OptionalTimePickerField(
     OutlinedButton(
         onClick = { isOpen = true },
         modifier = modifier.fillMaxWidth().testTag(tag),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, PlannerExtras.palette.line),
+        colors = ButtonDefaults.outlinedButtonColors(containerColor = PlannerExtras.palette.surface),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Icon(

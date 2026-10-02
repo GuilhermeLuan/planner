@@ -4,6 +4,15 @@ import dev.guilhermeluan.planner.ui.components.PlannerScene
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,10 +36,11 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,7 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.guilhermeluan.planner.ui.theme.PlannerExtras
 import androidx.compose.ui.platform.testTag
 import dev.guilhermeluan.planner.tasks.DayPlan
 import dev.guilhermeluan.planner.tasks.PlannedRoutineOccurrence
@@ -69,6 +82,7 @@ data class DayUiState(
     val selectedDay: LocalDate,
     val plan: DayPlan,
     val isLoading: Boolean = false,
+    val markedDays: Set<LocalDate> = emptySet(),
 )
 
 @Composable
@@ -91,10 +105,6 @@ fun DayScreen(
     var draftTitle by rememberSaveable { mutableStateOf("") }
     var draftTime by rememberSaveable { mutableStateOf("") }
     var showCreateRoutine by rememberSaveable { mutableStateOf(false) }
-    var routineTitle by rememberSaveable { mutableStateOf("") }
-    var routineStartDate by rememberSaveable { mutableStateOf(state.selectedDay.toString()) }
-    var routineTime by rememberSaveable { mutableStateOf("") }
-    var routineWeekdays by remember { mutableStateOf(setOf(state.selectedDay.dayOfWeek)) }
     var showCalendar by rememberSaveable { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<PlannerTask?>(null) }
     var reschedulingTask by remember { mutableStateOf<PlannerTask?>(null) }
@@ -102,6 +112,7 @@ fun DayScreen(
     val plan = state.plan
     val scheduledTasks = plan.tasks.filter { it.time != null }
     val untimedTasks = plan.tasks.filter { it.time == null }
+    val remaining = plan.tasks.count { it.status != TaskStatus.DONE }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -123,67 +134,51 @@ fun DayScreen(
                 item {
                     DayRibbon(
                         selectedDay = selectedDay,
+                        markedDays = state.markedDays,
                         onSelectDay = onSelectDay,
                     )
                 }
                 item {
-                    DaySummary(plan = plan)
-                }
-                item {
-                    DaySection(title = "Rotinas") {
-                        Button(
-                            onClick = {
-                                routineTitle = ""
-                                routineStartDate = selectedDay.toString()
-                                routineTime = ""
-                                routineWeekdays = setOf(selectedDay.dayOfWeek)
-                                showCreateRoutine = true
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        ) {
-                            Text("Nova Rotina")
-                        }
+                    DaySection(
+                        title = "Rotinas",
+                        action = "Nova rotina",
+                        onAction = {
+                            showCreateRoutine = true
+                        },
+                    ) {
                         if (plan.routines.isEmpty()) {
                             EmptySectionText("Nenhuma rotina planejada para este dia")
                         } else {
-                            plan.routines.forEach { routine ->
-                                RoutineRow(routine, onToggleRoutine)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .background(PlannerExtras.palette.surface)
+                                    .border(1.dp, PlannerExtras.palette.line, RoundedCornerShape(22.dp))
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                            ) {
+                                plan.routines.forEachIndexed { index, routine ->
+                                    if (index > 0) HorizontalDivider(color = PlannerExtras.palette.line)
+                                    RoutineRow(routine, onToggleRoutine)
+                                }
                             }
-                        }
-                    }
-                }
-                if (scheduledTasks.isNotEmpty()) {
-                    item {
-                        DaySection(title = "Tarefas com horário") {
-                            scheduledTasks.forEach { task ->
-                                TaskRow(
-                                    task = task,
-                                    onToggleTask = onToggleTask,
-                                    onEditTask = { editingTask = it },
-                                    onRescheduleTask = { reschedulingTask = it },
-                                    onArchiveTask = onArchiveTask,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    item {
-                        DaySection(title = "Tarefas com horário") {
-                            EmptySectionText("Nenhuma tarefa com horário")
                         }
                     }
                 }
                 item {
-                    DaySection(title = "Sem horário") {
-                        if (untimedTasks.isEmpty()) {
+                    DaySection(
+                        title = "Tarefas",
+                        trailing = "$remaining ${if (remaining == 1) "restante" else "restantes"}",
+                    ) {
+                        if (plan.tasks.isEmpty()) {
                             EmptySectionText("Tudo em dia por enquanto")
                         } else {
-                            untimedTasks.forEach { task ->
+                            val nextTaskId = (scheduledTasks + untimedTasks)
+                                .firstOrNull { it.status != TaskStatus.DONE }?.id
+                            (scheduledTasks + untimedTasks).forEach { task ->
                                 TaskRow(
                                     task = task,
+                                    highlighted = task.id == nextTaskId,
                                     onToggleTask = onToggleTask,
                                     onEditTask = { editingTask = it },
                                     onRescheduleTask = { reschedulingTask = it },
@@ -204,20 +199,18 @@ fun DayScreen(
                 }
             }
 
-            Button(
+            ExtendedFloatingActionButton(
                 onClick = { showCreateTask = true },
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomEnd)
                     .padding(horizontal = 24.dp, vertical = 24.dp)
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-            ) {
-                Text("Nova Tarefa", style = MaterialTheme.typography.labelLarge)
-            }
+                    .testTag("new-task-fab"),
+                shape = RoundedCornerShape(28.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                text = { Text("Nova tarefa", style = MaterialTheme.typography.labelLarge) },
+            )
         }
     }
 
@@ -277,79 +270,12 @@ fun DayScreen(
     }
 
     if (showCreateRoutine) {
-        val parsedStart = runCatching { LocalDate.parse(routineStartDate.trim()) }.getOrNull()
-        val parsedTime = routineTime.trim().takeIf(String::isNotEmpty)?.let {
-            runCatching { LocalTime.parse(it) }.getOrNull()
-        }
-        val startError = if (parsedStart == null) "Use uma data como 2026-07-11" else null
-        AlertDialog(
-            onDismissRequest = { showCreateRoutine = false },
-            title = { Text("Nova Rotina") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = routineTitle,
-                        onValueChange = { routineTitle = it },
-                        modifier = Modifier.fillMaxWidth().testTag("routine-title"),
-                        label = { Text("Título da Rotina") },
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = routineStartDate,
-                        onValueChange = { routineStartDate = it },
-                        modifier = Modifier.fillMaxWidth().testTag("routine-start-date"),
-                        label = { Text("Começa em (AAAA-MM-DD)") },
-                        isError = startError != null,
-                        supportingText = { if (startError != null) Text(startError) },
-                        singleLine = true,
-                    )
-                    OptionalTimePickerField(
-                        value = parsedTime,
-                        onValueChange = { routineTime = formatTime(it) },
-                        label = "Horário opcional",
-                        tag = "routine-time",
-                    )
-                    Text("Dias da semana", style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        DayOfWeek.entries.forEach { weekday ->
-                            FilterChip(
-                                selected = weekday in routineWeekdays,
-                                onClick = {
-                                    routineWeekdays = if (weekday in routineWeekdays) {
-                                        routineWeekdays - weekday
-                                    } else {
-                                        routineWeekdays + weekday
-                                    }
-                                },
-                                label = {
-                                    Text(weekday.getDisplayName(TextStyle.NARROW, Locale("pt", "BR")))
-                                },
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = routineTitle.trim().isNotEmpty() &&
-                        parsedStart != null && routineWeekdays.isNotEmpty(),
-                    onClick = {
-                        onCreateRoutine(
-                            RoutineDraft(
-                                title = routineTitle.trim(),
-                                weekdays = routineWeekdays,
-                                startDate = parsedStart ?: selectedDay,
-                                time = parsedTime,
-                            ),
-                        )
-                        showCreateRoutine = false
-                    },
-                ) {
-                    Text("Salvar Rotina")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateRoutine = false }) { Text("Cancelar") }
+        NewRoutineSheet(
+            initialDay = selectedDay,
+            onDismiss = { showCreateRoutine = false },
+            onSave = {
+                onCreateRoutine(it)
+                showCreateRoutine = false
             },
         )
     }
@@ -435,43 +361,47 @@ private fun DayHeader(
 @Composable
 private fun DayRibbon(
     selectedDay: LocalDate,
+    markedDays: Set<LocalDate>,
     onSelectDay: (LocalDate) -> Unit,
 ) {
+    val palette = PlannerExtras.palette
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        (-3L..3L).forEach { offset ->
-            val day = selectedDay.plusDays(offset)
+        Week.days(Week.of(selectedDay)).forEach { day ->
             val selected = day == selectedDay
-            TextButton(
-                onClick = { onSelectDay(day) },
-                modifier = Modifier.size(width = 42.dp, height = 64.dp),
-                contentPadding = PaddingValues(0.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.textButtonColors(
-                    containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surface,
-                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
+            Column(
+                modifier = Modifier
+                    .testTag("week-day-$day")
+                    .width(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (selected) MaterialTheme.colorScheme.primary else palette.blush)
+                    .clickable { onSelectDay(day) }
+                    .padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale("pt", "BR"))
-                            .replaceFirstChar(Char::uppercase),
-                        style = MaterialTheme.typography.labelSmall,
+                Text(
+                    text = day.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale("pt", "BR")).uppercase(),
+                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                    color = if (selected) Color(0xFFFFD6E5) else palette.mutedInk,
+                )
+                Text(
+                    text = day.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold),
+                    color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                )
+                if (day in markedDays) {
+                    Box(
+                        Modifier
+                            .testTag("week-marker")
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary),
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = day.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
+                } else {
+                    Spacer(Modifier.size(4.dp))
                 }
             }
         }
@@ -479,49 +409,36 @@ private fun DayRibbon(
 }
 
 @Composable
-private fun DaySummary(plan: DayPlan) {
-    val completed = plan.tasks.count { it.status == TaskStatus.DONE }
-    Surface(
-        modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        shape = RoundedCornerShape(20.dp),
+private fun DaySection(
+    title: String,
+    trailing: String? = null,
+    action: String? = null,
+    onAction: () -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Fita do Dia", style = MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            trailing?.let {
                 Text(
-                    "Uma sequência leve para hoje",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    it,
+                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
+                    color = PlannerExtras.palette.mutedInk,
                 )
             }
-            Text(
-                "$completed/${plan.tasks.size}",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            action?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onAction).padding(vertical = 8.dp),
+                )
+            }
         }
-    }
-}
-
-@Composable
-private fun DaySection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                content()
-            },
-        )
+        content()
     }
 }
 
@@ -539,13 +456,15 @@ private fun RoutineRow(
     routine: PlannedRoutineOccurrence,
     onToggleRoutine: (String, LocalDate, RoutineOccurrenceStatus) -> Unit,
 ) {
+    val done = routine.status == RoutineOccurrenceStatus.DONE
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(
-            checked = routine.status == RoutineOccurrenceStatus.DONE,
-            onCheckedChange = { checked ->
+        CompleteCircle(
+            done = done,
+            label = "Concluir ${routine.title}",
+            onToggle = { checked ->
                 onToggleRoutine(
                     routine.routineId,
                     routine.day,
@@ -553,18 +472,47 @@ private fun RoutineRow(
                 )
             },
         )
-        Column {
+        Column(modifier = Modifier.padding(start = 8.dp)) {
             Text(
                 routine.title,
-                style = MaterialTheme.typography.bodyLarge,
-                textDecoration = if (routine.status == RoutineOccurrenceStatus.DONE) {
-                    TextDecoration.LineThrough
-                } else {
-                    null
-                },
+                style = MaterialTheme.typography.titleMedium,
+                color = if (done) PlannerExtras.palette.mutedInk else MaterialTheme.colorScheme.onSurface,
             )
-            routine.time?.let {
-                Text(it.toString(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                routine.time?.toString() ?: "sem horário",
+                style = MaterialTheme.typography.bodySmall,
+                color = PlannerExtras.palette.mutedInk,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompleteCircle(done: Boolean, label: String, onToggle: (Boolean) -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .toggleable(value = done, role = Role.Checkbox, onValueChange = onToggle)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(if (done) accent else Color.Transparent)
+                .border(2.dp, if (done) accent else PlannerExtras.palette.line, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (done) {
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp),
+                )
             }
         }
     }
@@ -573,43 +521,54 @@ private fun RoutineRow(
 @Composable
 private fun TaskRow(
     task: PlannerTask,
+    highlighted: Boolean,
     onToggleTask: (String, Boolean) -> Unit,
     onEditTask: (PlannerTask) -> Unit,
     onRescheduleTask: (PlannerTask) -> Unit,
     onArchiveTask: (String) -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val palette = PlannerExtras.palette
+    val shape = RoundedCornerShape(18.dp)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Checkbox(
-            checked = task.status == TaskStatus.DONE,
-            onCheckedChange = { checked -> onToggleTask(task.id, checked) },
+        Text(
+            text = task.time?.toString() ?: "Livre",
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.width(42.dp),
         )
-        Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .clip(shape)
+                .background(if (highlighted) palette.blush else palette.surface)
+                .border(1.dp, palette.line, shape)
+                .padding(start = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CompleteCircle(
+                done = task.status == TaskStatus.DONE,
+                label = "Concluir ${task.title}",
+                onToggle = { checked -> onToggleTask(task.id, checked) },
+            )
             Text(
                 text = task.title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp),
                 textDecoration = if (task.status == TaskStatus.DONE) TextDecoration.LineThrough else null,
-                color = if (task.status == TaskStatus.DONE) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onSurface,
+                color = if (task.status == TaskStatus.DONE) palette.mutedInk else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
             )
-            task.time?.let {
-                Text(
-                    text = it.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Box {
-            IconButton(
-                onClick = { showMenu = true },
-                modifier = Modifier.size(44.dp),
-            ) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "Ações de ${task.title}")
-            }
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(Icons.Outlined.MoreVert, contentDescription = "Ações de ${task.title}", tint = palette.mutedInk)
+                }
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                 DropdownMenuItem(
                     text = { Text("Editar Tarefa") },
@@ -632,6 +591,7 @@ private fun TaskRow(
                         onArchiveTask(task.id)
                     },
                 )
+            }
             }
         }
     }
@@ -796,6 +756,6 @@ private fun RescheduleTaskDialog(
     )
 }
 
-private fun formatTime(time: LocalTime?): String = time?.let {
+internal fun formatTime(time: LocalTime?): String = time?.let {
     String.format(Locale.ROOT, "%02d:%02d", it.hour, it.minute)
 }.orEmpty()

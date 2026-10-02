@@ -30,6 +30,9 @@ class DayPlanner(
 
     fun observeDay(day: LocalDate): Flow<DayPlan> = repository.observeDay(account.id, day)
 
+    fun observeMarkedDays(week: ClosedRange<LocalDate>): Flow<Set<LocalDate>> =
+        repository.observeMarkedDays(account.id, week)
+
     suspend fun rebuildReminders() =
         reminders.rebuild(repository.observeScheduledTasks(account.id).first(), account.timezone)
 

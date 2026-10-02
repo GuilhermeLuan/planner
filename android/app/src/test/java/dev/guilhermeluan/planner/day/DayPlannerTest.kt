@@ -11,6 +11,7 @@ import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.tasks.IdGenerator
 import dev.guilhermeluan.planner.tasks.PlannerTask
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
+import dev.guilhermeluan.planner.tasks.RoutineDraft
 import dev.guilhermeluan.planner.tasks.TaskDraft
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -21,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.Clock
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -63,6 +65,32 @@ class DayPlannerTest {
 
         assertEquals(listOf(created), dayPlanner.observeDay(day).first().tasks)
         assertEquals(listOf(created), reminders.scheduled)
+    }
+
+    @Test
+    fun `marked days include days with Tarefas or Rotinas and skip archived and empty ones`() = runTest {
+        val account = Account("account-1", "Gui", "America/Sao_Paulo", false)
+        val planner = Planner("planner-1", account.id)
+        database.seed(account, planner)
+        val ids = ArrayDeque(listOf("task-1", "task-2", "routine-1"))
+        val dayPlanner = DayPlanner(
+            RoomPlannerRepository(database, IdGenerator { ids.removeFirst() }, Clock.systemUTC()),
+            RecordingReminderAdapter(),
+        )
+        dayPlanner.bind(account, planner)
+        val monday = LocalDate.of(2026, 7, 13)
+        dayPlanner.createTask(TaskDraft("Estudar", monday.plusDays(1), null))
+        val archived = dayPlanner.createTask(TaskDraft("Velha", monday.plusDays(2), null))
+        dayPlanner.archiveTask(archived.id)
+        dayPlanner.createRoutine(
+            RoutineDraft(
+                "Alongar", setOf(DayOfWeek.FRIDAY), monday, null,
+            ),
+        )
+
+        val marked = dayPlanner.observeMarkedDays(Week.of(monday)).first()
+
+        assertEquals(setOf(monday.plusDays(1), monday.plusDays(4)), marked)
     }
 
     @Test

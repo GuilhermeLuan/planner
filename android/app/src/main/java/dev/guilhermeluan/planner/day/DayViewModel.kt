@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
@@ -56,8 +57,15 @@ class DayViewModel(
             }
             selectedDay.collectLatest { day ->
                 _uiState.update { it.copy(selectedDay = day, isLoading = true) }
-                dayPlanner.observeDay(day).collect { plan ->
-                    _uiState.update { it.copy(selectedDay = day, plan = plan, isLoading = false) }
+                coroutineScope {
+                    launch {
+                        dayPlanner.observeMarkedDays(Week.of(day)).collect { marked ->
+                            _uiState.update { it.copy(markedDays = marked) }
+                        }
+                    }
+                    dayPlanner.observeDay(day).collect { plan ->
+                        _uiState.update { it.copy(selectedDay = day, plan = plan, isLoading = false) }
+                    }
                 }
             }
         }

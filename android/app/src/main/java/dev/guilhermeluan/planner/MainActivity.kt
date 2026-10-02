@@ -18,9 +18,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import dev.guilhermeluan.planner.day.DayGreeting
+import kotlinx.coroutines.delay
+import java.time.Clock
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -108,6 +112,16 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
         is PlannerAppUiState.Ready -> {
             val localPlanner = current.localPlanner
             LaunchedEffect(localPlanner.account.id, localPlanner.planner.id) { dayViewModel.bind(localPlanner) }
+            val accountTimezone = localPlanner.account.timezone
+            val greetingTime by produceState(
+                DayGreeting.localTime(Clock.systemUTC(), accountTimezone),
+                accountTimezone,
+            ) {
+                while (true) {
+                    value = DayGreeting.localTime(Clock.systemUTC(), accountTimezone)
+                    delay(60_000)
+                }
+            }
             PlannerTabHost(
                 today = {
                     DayScreen(
@@ -122,6 +136,7 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
                         onArchiveTask = dayViewModel::archiveTask,
                         onRestoreTask = dayViewModel::restoreTask,
                         userName = localPlanner.account.username,
+                        now = greetingTime,
                     )
                 },
                 you = {
