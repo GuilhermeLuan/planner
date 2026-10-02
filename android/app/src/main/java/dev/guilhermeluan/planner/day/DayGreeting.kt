@@ -1,6 +1,8 @@
 package dev.guilhermeluan.planner.day
 
+import java.time.Clock
 import java.time.LocalTime
+import java.time.ZoneId
 
 object DayGreeting {
     fun forTime(time: LocalTime): String = when (time.hour) {
@@ -8,6 +10,8 @@ object DayGreeting {
         in 12..17 -> "Boa tarde"
         else -> "Boa noite"
     }
+
+    fun localTime(clock: Clock, timezone: String): LocalTime = LocalTime.now(clock.withZone(ZoneId.of(timezone)))
 
     fun text(time: LocalTime, name: String): String {
         val trimmed = name.trim()

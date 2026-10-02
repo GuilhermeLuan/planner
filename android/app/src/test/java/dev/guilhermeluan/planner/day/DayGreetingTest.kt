@@ -20,4 +20,12 @@ class DayGreetingTest {
         assertEquals("Boa noite, Guilherme", DayGreeting.text(LocalTime.of(21, 0), "Guilherme"))
         assertEquals("Boa noite", DayGreeting.text(LocalTime.of(21, 0), "  "))
     }
+
+    @Test
+    fun usesTheLocalTimeOfTheAccountTimezone() {
+        val clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-02T01:30:00Z"), java.time.ZoneOffset.UTC)
+
+        assertEquals(LocalTime.of(22, 30), DayGreeting.localTime(clock, "America/Sao_Paulo"))
+        assertEquals(LocalTime.of(2, 30), DayGreeting.localTime(clock, "Europe/Lisbon"))
+    }
 }

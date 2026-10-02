@@ -1,6 +1,8 @@
 package dev.guilhermeluan.planner.tasks
 
+import dev.guilhermeluan.planner.day.Week
 import dev.guilhermeluan.planner.storage.PlannerDatabase
+import dev.guilhermeluan.planner.storage.RoutineEntity
 import dev.guilhermeluan.planner.storage.TaskEntity
 import dev.guilhermeluan.planner.storage.RoutineOccurrenceEntity
 import kotlinx.coroutines.flow.Flow
@@ -57,6 +59,17 @@ class RoomPlannerRepository(
             routines = (projected + persisted).associateBy(PlannedRoutineOccurrence::id).values.toList(),
             archivedTasks = archivedTasks.map(TaskEntity::toDomain),
         )
+    }
+
+    fun observeMarkedDays(accountId: String, week: ClosedRange<LocalDate>): Flow<Set<LocalDate>> = combine(
+        dao.observeTaskDays(accountId, week.start.toString(), week.endInclusive.toString()),
+        routineDao.observeRoutines(accountId),
+    ) { taskDays, routines ->
+        val domainRoutines = routines.map(RoutineEntity::toDomain)
+        val routineDays = Week.days(week).filter { day ->
+            domainRoutines.any { RoutineRecurrence.occurrenceOn(it, day) != null }
+        }
+        taskDays.map(LocalDate::parse).toSet() + routineDays
     }
 
     fun observeScheduledTasks(accountId: String): Flow<List<PlannerTask>> =

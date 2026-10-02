@@ -31,6 +31,14 @@ abstract class PlannerDao {
     )
     abstract fun observeArchivedTasks(accountId: String, day: String): Flow<List<TaskEntity>>
 
+    @Query(
+        """
+        SELECT DISTINCT day FROM tasks
+        WHERE accountId = :accountId AND archived = 0 AND day BETWEEN :from AND :to
+        """,
+    )
+    abstract fun observeTaskDays(accountId: String, from: String, to: String): Flow<List<String>>
+
     @Query("SELECT * FROM tasks WHERE accountId = :accountId AND archived = 0 AND time IS NOT NULL")
     abstract fun observeScheduledTasks(accountId: String): Flow<List<TaskEntity>>
 

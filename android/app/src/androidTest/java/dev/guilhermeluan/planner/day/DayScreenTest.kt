@@ -42,18 +42,18 @@ class DayScreenTest {
                     onSelectDay = {},
                     onCreateTask = { created = it },
                     onToggleTask = { _, _ -> },
-                    onLogout = {},
                 )
             }
         }
 
         composeRule.onNodeWithText("Rotinas").assertIsDisplayed()
-        composeRule.onNodeWithText("Tarefas com horário").assertIsDisplayed()
-        composeRule.onNodeWithText("Sem horário").assertIsDisplayed()
+        composeRule.onNodeWithText("Tarefas").assertIsDisplayed()
+        composeRule.onNodeWithText("2 restantes").assertIsDisplayed()
+        composeRule.onNodeWithText("Livre").assertIsDisplayed()
         composeRule.onNodeWithText("Enviar documentos").assertIsDisplayed()
         composeRule.onNodeWithText("Organizar a semana").assertIsDisplayed()
 
-        composeRule.onNodeWithText("Nova Tarefa").performClick()
+        composeRule.onNodeWithTag("new-task-fab").performClick()
         composeRule.onNodeWithTag("task-title").performTextInput("Comprar café")
         composeRule.onNodeWithText("Adicionar ao Dia").performClick()
 
