@@ -18,9 +18,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import dev.guilhermeluan.planner.day.DayGreeting
 import kotlinx.coroutines.delay
 import java.time.Clock
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +34,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.guilhermeluan.planner.day.DayScreen
 import dev.guilhermeluan.planner.day.DayViewModel
+import dev.guilhermeluan.planner.medicines.MedicinesScreen
+import dev.guilhermeluan.planner.medicines.MedicinesViewModel
 import dev.guilhermeluan.planner.session.AccountSettingsScreen
 import dev.guilhermeluan.planner.session.OnboardingScreen
 import dev.guilhermeluan.planner.session.PlannerAppUiState
@@ -43,6 +46,7 @@ import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 class MainActivity : ComponentActivity() {
     private val viewModel: PlannerViewModel by viewModels { PlannerViewModel.Factory(application as PlannerApplication) }
     private val dayViewModel: DayViewModel by viewModels { DayViewModel.Factory(application as PlannerApplication) }
+    private val medicinesViewModel: MedicinesViewModel by viewModels { MedicinesViewModel.Factory(application as PlannerApplication) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +54,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlannerTheme {
                 NotificationPermissionRequester {
-                    PlannerApp(viewModel, dayViewModel)
+                    PlannerApp(viewModel, dayViewModel, medicinesViewModel)
                 }
             }
         }
@@ -72,9 +76,10 @@ private fun NotificationPermissionRequester(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) {
+private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, medicinesViewModel: MedicinesViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dayState by dayViewModel.uiState.collectAsStateWithLifecycle()
+    val medicinesState by medicinesViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -111,17 +116,20 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
         )
         is PlannerAppUiState.Ready -> {
             val localPlanner = current.localPlanner
-            LaunchedEffect(localPlanner.account.id, localPlanner.planner.id) { dayViewModel.bind(localPlanner) }
+            LaunchedEffect(localPlanner.account.id, localPlanner.planner.id) {
+                dayViewModel.bind(localPlanner)
+                medicinesViewModel.bind(localPlanner)
+            }
+            LaunchedEffect(dayState.selectedDay) { medicinesViewModel.selectDay(dayState.selectedDay) }
             val accountTimezone = localPlanner.account.timezone
-            val greetingTime by produceState(
-                DayGreeting.localTime(Clock.systemUTC(), accountTimezone),
-                accountTimezone,
-            ) {
+            val zone = ZoneId.of(accountTimezone)
+            val clockNow by produceState(ZonedDateTime.now(Clock.systemUTC().withZone(zone)), zone) {
                 while (true) {
-                    value = DayGreeting.localTime(Clock.systemUTC(), accountTimezone)
+                    value = ZonedDateTime.now(Clock.systemUTC().withZone(zone))
                     delay(60_000)
                 }
             }
+            val greetingTime = clockNow.toLocalTime()
             PlannerTabHost(
                 today = {
                     DayScreen(
@@ -137,6 +145,15 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
                         onRestoreTask = dayViewModel::restoreTask,
                         userName = localPlanner.account.username,
                         now = greetingTime,
+                    )
+                },
+                medicines = {
+                    MedicinesScreen(
+                        state = medicinesState,
+                        today = clockNow.toLocalDate(),
+                        zone = zone,
+                        onSetDoseStatus = medicinesViewModel::setDoseStatus,
+                        onCreateMedicine = medicinesViewModel::createMedicine,
                     )
                 },
                 you = {

@@ -17,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -77,53 +78,55 @@ fun OptionalTimePickerField(
     }
 
     if (isOpen) {
-        val pickerState = rememberTimePickerState(
-            initialHour = value?.hour ?: 9,
-            initialMinute = value?.minute ?: 0,
-            is24Hour = true,
+        TimePickerDialog(
+            initial = value ?: LocalTime.of(9, 0),
+            onDismiss = { isOpen = false },
+            onConfirm = {
+                onValueChange(it)
+                isOpen = false
+            },
+            onClear = if (value != null) {
+                {
+                    onValueChange(null)
+                    isOpen = false
+                }
+            } else null,
         )
-        Dialog(
-            onDismissRequest = { isOpen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
+    }
+}
+
+/** Diálogo de hora; só oferece "Sem horário" quando o campo é opcional e já tem valor (`onClear`). */
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+fun TimePickerDialog(
+    initial: LocalTime,
+    onDismiss: () -> Unit,
+    onConfirm: (LocalTime) -> Unit,
+    onClear: (() -> Unit)? = null,
+) {
+    val pickerState = rememberTimePickerState(initial.hour, initial.minute, is24Hour = true)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
         ) {
-            androidx.compose.material3.Surface(
-                modifier = Modifier.padding(horizontal = 24.dp),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface,
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text("Escolher horário", style = MaterialTheme.typography.headlineSmall)
-                    TimePicker(state = pickerState)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = { isOpen = false }) { Text("Cancelar") }
-                        if (value != null) {
-                            TextButton(onClick = {
-                                onValueChange(null)
-                                isOpen = false
-                            }) {
-                                Text("Sem horário")
-                            }
-                        }
-                        Button(
-                            onClick = {
-                                onValueChange(LocalTime.of(pickerState.hour, pickerState.minute))
-                                isOpen = false
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
-                        ) {
-                            Text("Usar horário")
-                        }
-                    }
+                Text("Escolher horário", style = MaterialTheme.typography.headlineSmall)
+                TimePicker(state = pickerState)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onDismiss) { Text("Cancelar") }
+                    if (onClear != null) TextButton(onClick = onClear) { Text("Sem horário") }
+                    Button(
+                        onClick = { onConfirm(LocalTime.of(pickerState.hour, pickerState.minute)) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    ) { Text("Usar horário") }
                 }
             }
         }
