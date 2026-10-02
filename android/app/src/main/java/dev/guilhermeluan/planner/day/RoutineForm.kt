@@ -52,7 +52,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.tasks.RoutineDraft
+import dev.guilhermeluan.planner.ui.components.FormField
 import dev.guilhermeluan.planner.ui.components.PlannerChip
+import dev.guilhermeluan.planner.ui.components.PtBr
+import dev.guilhermeluan.planner.ui.components.formFieldColors
+import dev.guilhermeluan.planner.ui.components.PlannerFormSheet
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
 import java.time.DayOfWeek
 import java.time.Instant
@@ -63,36 +67,16 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val PtBr = Locale("pt", "BR")
-private val StartDateFormatter = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", PtBr)
+internal val StartDateFormatter = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", PtBr)
 
 /** Folha inferior "Nova rotina", no mesmo desenho da folha de novo remédio do Figma. */
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 fun NewRoutineSheet(
     initialDay: LocalDate,
     onDismiss: () -> Unit,
     onSave: (RoutineDraft) -> Unit,
 ) {
-    val palette = PlannerExtras.palette
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.background,
-        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = 12.dp)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(palette.line),
-            )
-        },
-    ) {
-        RoutineForm(initialDay = initialDay, onSave = onSave)
-    }
+    PlannerFormSheet(onDismiss) { RoutineForm(initialDay = initialDay, onSave = onSave) }
 }
 
 @Composable
@@ -217,7 +201,7 @@ fun RoutineForm(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun StartDatePickerDialog(
+internal fun StartDatePickerDialog(
     initial: LocalDate,
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
@@ -284,23 +268,3 @@ private fun StartDatePickerDialog(
         }
     }
 }
-
-@Composable
-private fun FormField(label: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-            color = PlannerExtras.palette.secondaryInk,
-        )
-        content()
-    }
-}
-
-@Composable
-private fun formFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = MaterialTheme.colorScheme.primary,
-    unfocusedBorderColor = PlannerExtras.palette.line,
-    focusedContainerColor = PlannerExtras.palette.surface,
-    unfocusedContainerColor = PlannerExtras.palette.surface,
-)

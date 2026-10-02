@@ -1,5 +1,6 @@
 package dev.guilhermeluan.planner.tasks
 
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.DayOfWeek
@@ -66,3 +67,55 @@ data class DayPlan(
 fun interface IdGenerator {
     fun nextId(): String
 }
+
+enum class DoseUnit(val label: String, private val singular: String, private val plural: String) {
+    TABLET("comprimido", "comprimido", "comprimidos"),
+    CAPSULE("cápsula", "cápsula", "cápsulas"),
+    DROPS("gotas", "gota", "gotas"),
+    ML("ml", "ml", "ml");
+
+    fun format(amount: Int): String = "$amount ${if (amount == 1) singular else plural}"
+}
+
+sealed interface MedicineRepeat {
+    data object Daily : MedicineRepeat
+    data class Weekdays(val days: Set<DayOfWeek>) : MedicineRepeat
+    data class Period(val start: LocalDate, val end: LocalDate) : MedicineRepeat
+}
+
+enum class MedicineStatus { ACTIVE, ARCHIVED }
+
+enum class DoseStatus { PENDING, TAKEN, SKIPPED }
+
+data class PlannerMedicine(
+    val id: String,
+    val accountId: String,
+    val plannerId: String,
+    val name: String,
+    val amount: Int,
+    val unit: DoseUnit,
+    val times: Set<LocalTime>,
+    val repeat: MedicineRepeat,
+    val startDate: LocalDate,
+    val status: MedicineStatus,
+)
+
+data class MedicineDraft(
+    val name: String,
+    val amount: Int,
+    val unit: DoseUnit,
+    val times: Set<LocalTime>,
+    val repeat: MedicineRepeat,
+    val startDate: LocalDate,
+)
+
+data class PlannedDose(
+    val medicineId: String,
+    val name: String,
+    val amount: Int,
+    val unit: DoseUnit,
+    val day: LocalDate,
+    val time: LocalTime,
+    val status: DoseStatus = DoseStatus.PENDING,
+    val takenAt: Instant? = null,
+)

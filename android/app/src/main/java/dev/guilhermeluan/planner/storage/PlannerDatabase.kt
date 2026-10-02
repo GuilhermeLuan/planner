@@ -11,14 +11,18 @@ import androidx.room.RoomDatabase
         TaskEntity::class,
         RoutineEntity::class,
         RoutineOccurrenceEntity::class,
+        MedicineEntity::class,
+        MedicineTimeEntity::class,
+        DoseRecordEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun plannerDao(): PlannerDao
     abstract fun routineDao(): RoutineDao
+    abstract fun medicineDao(): MedicineDao
 
     companion object {
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
@@ -65,6 +69,54 @@ abstract class PlannerDatabase : RoomDatabase() {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
                 database.execSQL("DROP TABLE IF EXISTS outbox")
                 database.execSQL("DROP TABLE IF EXISTS sync_state")
+            }
+        }
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS medicines (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        accountId TEXT NOT NULL,
+                        plannerId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        amount INTEGER NOT NULL,
+                        unit TEXT NOT NULL,
+                        repeatKind TEXT NOT NULL,
+                        repeatWeekdays TEXT NOT NULL,
+                        startDate TEXT NOT NULL,
+                        endDate TEXT,
+                        status TEXT NOT NULL,
+                        updatedAt TEXT NOT NULL,
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(plannerId) REFERENCES planners(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_medicines_accountId ON medicines(accountId)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_medicines_plannerId ON medicines(plannerId)")
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS medicine_times (
+                        medicineId TEXT NOT NULL,
+                        time TEXT NOT NULL,
+                        PRIMARY KEY(medicineId, time),
+                        FOREIGN KEY(medicineId) REFERENCES medicines(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_medicine_times_medicineId ON medicine_times(medicineId)")
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS dose_records (
+                        medicineId TEXT NOT NULL,
+                        day TEXT NOT NULL,
+                        time TEXT NOT NULL,
+                        accountId TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        takenAt TEXT,
+                        updatedAt TEXT NOT NULL,
+                        PRIMARY KEY(medicineId, day, time),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(medicineId) REFERENCES medicines(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_dose_records_accountId_day ON dose_records(accountId, day)")
             }
         }
     }

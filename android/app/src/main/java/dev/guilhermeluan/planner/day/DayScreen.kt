@@ -488,7 +488,7 @@ private fun RoutineRow(
 }
 
 @Composable
-private fun CompleteCircle(done: Boolean, label: String, onToggle: (Boolean) -> Unit) {
+internal fun CompleteCircle(done: Boolean, label: String, onToggle: (Boolean) -> Unit) {
     val accent = MaterialTheme.colorScheme.primary
     Box(
         modifier = Modifier

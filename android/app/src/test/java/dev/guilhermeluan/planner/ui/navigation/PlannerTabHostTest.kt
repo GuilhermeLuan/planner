@@ -79,4 +79,21 @@ class PlannerTabHostTest {
         composeRule.onNodeWithTag("tab-hoje").performClick()
         composeRule.onNodeWithText("conteúdo do dia").assertIsDisplayed()
     }
+
+    @Test
+    fun medicinesTabShowsTheProvidedContent() {
+        composeRule.setContent {
+            PlannerTheme {
+                PlannerTabHost(
+                    today = { Text("conteúdo do dia") },
+                    you = { Text("conteúdo dos ajustes") },
+                    medicines = { Text("conteúdo dos remédios") },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("tab-remedios").performClick()
+
+        composeRule.onNodeWithText("conteúdo dos remédios").assertIsDisplayed()
+    }
 }

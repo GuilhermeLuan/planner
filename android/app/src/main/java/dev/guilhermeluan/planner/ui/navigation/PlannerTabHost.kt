@@ -21,6 +21,7 @@ fun PlannerTabHost(
     today: @Composable () -> Unit,
     you: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    medicines: (@Composable () -> Unit)? = null,
 ) {
     LightStatusBarIconsOnScene()
     var selected by rememberSaveable { mutableStateOf(PlannerTab.Today) }
@@ -28,7 +29,7 @@ fun PlannerTabHost(
         Box(Modifier.weight(1f)) {
             when (selected) {
                 PlannerTab.Today -> today()
-                PlannerTab.Medicines -> EmptyTabScreen(
+                PlannerTab.Medicines -> medicines?.invoke() ?: EmptyTabScreen(
                     tab = PlannerTab.Medicines,
                     title = "Nenhum remédio ainda",
                     message = "Cadastre um remédio para ser avisado na hora de cada dose.",

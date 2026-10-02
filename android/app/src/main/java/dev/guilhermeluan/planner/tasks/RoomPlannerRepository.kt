@@ -1,6 +1,9 @@
 package dev.guilhermeluan.planner.tasks
 
 import dev.guilhermeluan.planner.day.Week
+import dev.guilhermeluan.planner.storage.DoseRecordEntity
+import dev.guilhermeluan.planner.storage.MedicineEntity
+import dev.guilhermeluan.planner.storage.MedicineTimeEntity
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.storage.RoutineEntity
 import dev.guilhermeluan.planner.storage.TaskEntity
@@ -10,6 +13,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -20,6 +24,7 @@ class RoomPlannerRepository(
 ) {
     private val dao = database.plannerDao()
     private val routineDao = database.routineDao()
+    private val medicineDao = database.medicineDao()
 
     suspend fun createTask(
         accountId: String,
@@ -185,6 +190,93 @@ class RoomPlannerRepository(
         return occurrence
     }
 
+    suspend fun createMedicine(
+        accountId: String,
+        plannerId: String,
+        draft: MedicineDraft,
+    ): PlannerMedicine {
+        val name = draft.name.trim()
+        require(name.isNotEmpty()) { "O Remédio precisa de um nome" }
+        require(draft.amount > 0) { "A dose precisa de uma quantidade" }
+        require(draft.times.isNotEmpty()) { "Escolha ao menos um horário" }
+        val medicine = PlannerMedicine(
+            id = idGenerator.nextId(),
+            accountId = accountId,
+            plannerId = plannerId,
+            name = name,
+            amount = draft.amount,
+            unit = draft.unit,
+            times = draft.times,
+            repeat = draft.repeat,
+            startDate = (draft.repeat as? MedicineRepeat.Period)?.start ?: draft.startDate,
+            status = MedicineStatus.ACTIVE,
+        )
+        medicineDao.writeLocalMedicine(
+            medicine.toEntity(clock.instant().toString()),
+            medicine.times.map { MedicineTimeEntity(medicine.id, it.toString()) },
+        )
+        return medicine
+    }
+
+    fun observeMedicines(accountId: String): Flow<List<PlannerMedicine>> = combine(
+        medicineDao.observeMedicines(accountId),
+        medicineDao.observeTimes(accountId),
+        ::assembleMedicines,
+    ).map { medicines -> medicines.sortedBy { it.times.minOrNull() } }
+
+    fun observeDoses(accountId: String, day: LocalDate): Flow<List<PlannedDose>> = combine(
+        medicineDao.observeMedicines(accountId),
+        medicineDao.observeTimes(accountId),
+        medicineDao.observeDoseRecords(accountId, day.toString()),
+    ) { medicineEntities, times, records ->
+        val recordsByDose = records.associateBy { it.medicineId to LocalTime.parse(it.time) }
+        assembleMedicines(medicineEntities, times)
+            .filter { MedicineRecurrence.occursOn(it, day) }
+            .flatMap { medicine ->
+                medicine.times.map { time ->
+                    medicine.doseOn(day, time, recordsByDose[medicine.id to time])
+                }
+            }
+            .sortedBy(PlannedDose::time)
+    }
+
+    private fun assembleMedicines(
+        medicines: List<MedicineEntity>,
+        times: List<MedicineTimeEntity>,
+    ): List<PlannerMedicine> {
+        val timesByMedicine = times.groupBy(MedicineTimeEntity::medicineId)
+        return medicines
+            .map { it.toDomain(timesByMedicine[it.id].orEmpty().map { t -> LocalTime.parse(t.time) }.toSet()) }
+            .filter { it.status == MedicineStatus.ACTIVE }
+    }
+
+    /** Uma Dose só é persistida quando sai de pendente; voltar a pendente apaga o registro. */
+    suspend fun setDoseStatus(
+        accountId: String,
+        medicineId: String,
+        day: LocalDate,
+        time: LocalTime,
+        status: DoseStatus,
+    ) {
+        medicineDao.medicine(accountId, medicineId) ?: error("Remédio não encontrado")
+        if (status == DoseStatus.PENDING) {
+            medicineDao.deleteDoseRecord(medicineId, day.toString(), time.toString())
+            return
+        }
+        val now = clock.instant().toString()
+        medicineDao.upsertDoseRecord(
+            DoseRecordEntity(
+                medicineId = medicineId,
+                day = day.toString(),
+                time = time.toString(),
+                accountId = accountId,
+                status = status.name,
+                takenAt = now.takeIf { status == DoseStatus.TAKEN },
+                updatedAt = now,
+            ),
+        )
+    }
+
     private suspend fun setTaskArchived(
         accountId: String,
         taskId: String,
@@ -294,4 +386,55 @@ private fun dev.guilhermeluan.planner.storage.RoutineOccurrenceEntity.toDomain()
     day = LocalDate.parse(day),
     time = time?.let(LocalTime::parse),
     status = RoutineOccurrenceStatus.valueOf(status),
+)
+
+private fun PlannerMedicine.doseOn(day: LocalDate, time: LocalTime, record: DoseRecordEntity?) = PlannedDose(
+    medicineId = id,
+    name = name,
+    amount = amount,
+    unit = unit,
+    day = day,
+    time = time,
+    status = record?.let { DoseStatus.valueOf(it.status) } ?: DoseStatus.PENDING,
+    takenAt = record?.takenAt?.let(Instant::parse),
+)
+
+private fun PlannerMedicine.toEntity(updatedAt: String) = MedicineEntity(
+    id = id,
+    accountId = accountId,
+    plannerId = plannerId,
+    name = name,
+    amount = amount,
+    unit = unit.name,
+    repeatKind = when (repeat) {
+        MedicineRepeat.Daily -> "DAILY"
+        is MedicineRepeat.Weekdays -> "WEEKDAYS"
+        is MedicineRepeat.Period -> "PERIOD"
+    },
+    repeatWeekdays = (repeat as? MedicineRepeat.Weekdays)?.days
+        ?.sortedBy(DayOfWeek::getValue)?.joinToString(",") { it.value.toString() }.orEmpty(),
+    startDate = startDate.toString(),
+    endDate = (repeat as? MedicineRepeat.Period)?.end?.toString(),
+    status = status.name,
+    updatedAt = updatedAt,
+)
+
+private fun MedicineEntity.toDomain(times: Set<LocalTime>) = PlannerMedicine(
+    id = id,
+    accountId = accountId,
+    plannerId = plannerId,
+    name = name,
+    amount = amount,
+    unit = DoseUnit.valueOf(unit),
+    times = times,
+    repeat = when (repeatKind) {
+        "WEEKDAYS" -> MedicineRepeat.Weekdays(
+            repeatWeekdays.split(',').filter(String::isNotBlank).map { DayOfWeek.of(it.toInt()) }.toSet(),
+        )
+        "PERIOD" -> MedicineRepeat.Period(LocalDate.parse(startDate), LocalDate.parse(endDate))
+        "DAILY" -> MedicineRepeat.Daily
+        else -> error("Repetição de Remédio desconhecida: $repeatKind")
+    },
+    startDate = LocalDate.parse(startDate),
+    status = MedicineStatus.valueOf(status),
 )
