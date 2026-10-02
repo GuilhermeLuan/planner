@@ -74,7 +74,9 @@ enum class DoseUnit(val label: String, private val singular: String, private val
     DROPS("gotas", "gota", "gotas"),
     ML("ml", "ml", "ml");
 
-    fun format(amount: Int): String = "$amount ${if (amount == 1) singular else plural}"
+    fun noun(amount: Int): String = if (amount == 1) singular else plural
+
+    fun format(amount: Int): String = "$amount ${noun(amount)}"
 }
 
 sealed interface MedicineRepeat {
@@ -98,7 +100,19 @@ data class PlannerMedicine(
     val repeat: MedicineRepeat,
     val startDate: LocalDate,
     val status: MedicineStatus,
+    val stock: MedicineStock? = null,
 )
+
+/**
+ * Estoque de um Remédio. [capacity] é o que foi informado no cadastro e só serve de escala para a barra.
+ */
+data class MedicineStock(val amount: Int, val capacity: Int, val threshold: Int) {
+    /** Estoque igual ou abaixo do limite de aviso. */
+    val low: Boolean get() = amount <= threshold
+
+    /** Quanto da barra está cheio, entre 0 e 1. */
+    val fraction: Float get() = amount.toFloat() / maxOf(capacity, amount, 1)
+}
 
 data class MedicineDraft(
     val name: String,
@@ -107,6 +121,8 @@ data class MedicineDraft(
     val times: Set<LocalTime>,
     val repeat: MedicineRepeat,
     val startDate: LocalDate,
+    val stock: Int? = null,
+    val stockThreshold: Int? = null,
 )
 
 data class PlannedDose(

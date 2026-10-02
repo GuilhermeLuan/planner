@@ -15,7 +15,7 @@ import androidx.room.RoomDatabase
         MedicineTimeEntity::class,
         DoseRecordEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
@@ -117,6 +117,14 @@ abstract class PlannerDatabase : RoomDatabase() {
                     )""",
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_dose_records_accountId_day ON dose_records(accountId, day)")
+            }
+        }
+        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE medicines ADD COLUMN stockAmount INTEGER")
+                database.execSQL("ALTER TABLE medicines ADD COLUMN stockCapacity INTEGER")
+                database.execSQL("ALTER TABLE medicines ADD COLUMN stockThreshold INTEGER")
+                database.execSQL("ALTER TABLE dose_records ADD COLUMN stockDeducted INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

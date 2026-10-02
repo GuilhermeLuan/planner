@@ -60,14 +60,20 @@ class MedicineRepositoryTest {
         times: Set<LocalTime> = setOf(LocalTime.of(13, 0)),
         repeat: MedicineRepeat = MedicineRepeat.Daily,
         startDate: LocalDate = thursday,
+        amount: Int = 1,
+        stock: Int? = null,
+        threshold: Int? = null,
     ): PlannerMedicine {
         database.seed(account, planner)
         return repository.createMedicine(
             account.id,
             planner.id,
-            MedicineDraft(name, 1, DoseUnit.CAPSULE, times, repeat, startDate),
+            MedicineDraft(name, amount, DoseUnit.CAPSULE, times, repeat, startDate, stock, threshold),
         )
     }
+
+    private suspend fun stockOf(medicine: PlannerMedicine) =
+        repository.observeMedicines(account.id).first().single { it.id == medicine.id }.stock?.amount
 
     private suspend fun doses(day: LocalDate) = repository.observeDoses(account.id, day).first()
 
@@ -155,5 +161,99 @@ class MedicineRepositoryTest {
 
         assertEquals(listOf(created), listed)
         assertEquals(setOf(LocalTime.of(8, 0), LocalTime.of(21, 30)), listed.single().times)
+    }
+
+    @Test
+    fun takingADoseDeductsItsAmountFromTheStock() = runTest {
+        val medicine = create(amount = 2, stock = 30, threshold = 5)
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, LocalTime.of(13, 0), DoseStatus.TAKEN)
+
+        assertEquals(28, stockOf(medicine))
+    }
+
+    @Test
+    fun unmarkingATakenDoseGivesItsAmountBackToTheStock() = runTest {
+        val medicine = create(amount = 2, stock = 30, threshold = 5)
+        val time = LocalTime.of(13, 0)
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.TAKEN)
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.PENDING)
+
+        assertEquals(30, stockOf(medicine))
+    }
+
+    @Test
+    fun skippingNeverChangesTheStockAndTakingASkippedDoseDeductsOnce() = runTest {
+        val medicine = create(stock = 10, threshold = 2)
+        val time = LocalTime.of(13, 0)
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.SKIPPED)
+        assertEquals(10, stockOf(medicine))
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.TAKEN)
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.TAKEN)
+        assertEquals(9, stockOf(medicine))
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.SKIPPED)
+        assertEquals(10, stockOf(medicine))
+    }
+
+    @Test
+    fun theStockNeverGoesNegative() = runTest {
+        val medicine = create(amount = 3, stock = 2, threshold = 1)
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, LocalTime.of(13, 0), DoseStatus.TAKEN)
+
+        assertEquals(0, stockOf(medicine))
+    }
+
+    @Test
+    fun unmarkingAfterAClampedDeductionGivesBackOnlyWhatWasDeducted() = runTest {
+        val medicine = create(amount = 3, stock = 2, threshold = 1)
+        val time = LocalTime.of(13, 0)
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.TAKEN)
+        assertEquals(0, stockOf(medicine))
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.PENDING)
+
+        assertEquals(2, stockOf(medicine))
+    }
+
+    @Test
+    fun partialDeductionIsRefundedExactlyEvenWhenOtherDosesWereTakenMeanwhile() = runTest {
+        val medicine = create(amount = 2, stock = 3, threshold = 1)
+        val time = LocalTime.of(13, 0)
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.TAKEN)
+        repository.setDoseStatus(account.id, medicine.id, thursday.plusDays(1), time, DoseStatus.TAKEN)
+        assertEquals(0, stockOf(medicine))
+
+        repository.setDoseStatus(account.id, medicine.id, thursday.plusDays(1), time, DoseStatus.PENDING)
+
+        assertEquals(1, stockOf(medicine))
+    }
+
+    @Test
+    fun medicineWithoutStockIsNotAffectedByDoses() = runTest {
+        val medicine = create()
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, LocalTime.of(13, 0), DoseStatus.TAKEN)
+
+        val listed = repository.observeMedicines(account.id).first().single()
+        assertNull(listed.stock)
+    }
+
+    @Test
+    fun lowStockAlertsAtOrBelowTheThresholdOnly() = runTest {
+        val medicine = create(stock = 7, threshold = 5)
+        val time = LocalTime.of(13, 0)
+        fun low() = repository.observeMedicines(account.id)
+
+        repository.setDoseStatus(account.id, medicine.id, thursday, time, DoseStatus.TAKEN)
+        assertEquals(false, low().first().single().stock?.low)
+        repository.setDoseStatus(account.id, medicine.id, thursday.plusDays(1), time, DoseStatus.TAKEN)
+        assertEquals(true, low().first().single().stock?.low)
+        repository.setDoseStatus(account.id, medicine.id, thursday.plusDays(1), time, DoseStatus.PENDING)
+        assertEquals(false, low().first().single().stock?.low)
     }
 }

@@ -210,6 +210,7 @@ class RoomPlannerRepository(
             repeat = draft.repeat,
             startDate = (draft.repeat as? MedicineRepeat.Period)?.start ?: draft.startDate,
             status = MedicineStatus.ACTIVE,
+            stock = draft.stock?.let { MedicineStock(it, capacity = it, threshold = draft.stockThreshold ?: 0) },
         )
         medicineDao.writeLocalMedicine(
             medicine.toEntity(clock.instant().toString()),
@@ -258,23 +259,15 @@ class RoomPlannerRepository(
         time: LocalTime,
         status: DoseStatus,
     ) {
-        medicineDao.medicine(accountId, medicineId) ?: error("Remédio não encontrado")
-        if (status == DoseStatus.PENDING) {
-            medicineDao.deleteDoseRecord(medicineId, day.toString(), time.toString())
-            return
-        }
         val now = clock.instant().toString()
-        medicineDao.upsertDoseRecord(
-            DoseRecordEntity(
-                medicineId = medicineId,
-                day = day.toString(),
-                time = time.toString(),
-                accountId = accountId,
-                status = status.name,
-                takenAt = now.takeIf { status == DoseStatus.TAKEN },
-                updatedAt = now,
-            ),
-        )
+        medicineDao.writeDoseStatus(
+            accountId = accountId,
+            medicineId = medicineId,
+            day = day.toString(),
+            time = time.toString(),
+            status = status.name,
+            updatedAt = now,
+        ) ?: error("Remédio não encontrado")
     }
 
     private suspend fun setTaskArchived(
@@ -417,6 +410,9 @@ private fun PlannerMedicine.toEntity(updatedAt: String) = MedicineEntity(
     endDate = (repeat as? MedicineRepeat.Period)?.end?.toString(),
     status = status.name,
     updatedAt = updatedAt,
+    stockAmount = stock?.amount,
+    stockCapacity = stock?.capacity,
+    stockThreshold = stock?.threshold,
 )
 
 private fun MedicineEntity.toDomain(times: Set<LocalTime>) = PlannerMedicine(
@@ -437,4 +433,5 @@ private fun MedicineEntity.toDomain(times: Set<LocalTime>) = PlannerMedicine(
     },
     startDate = LocalDate.parse(startDate),
     status = MedicineStatus.valueOf(status),
+    stock = stockAmount?.let { MedicineStock(it, stockCapacity ?: it, stockThreshold ?: 0) },
 )

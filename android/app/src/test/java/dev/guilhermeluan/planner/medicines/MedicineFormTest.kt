@@ -133,4 +133,55 @@ class MedicineFormTest {
 
         assertEquals(MedicineRepeat.Period(thursday, thursday.plusDays(6)), saved?.repeat)
     }
+
+    @Test
+    fun stockAndWarningThresholdAreOptional() {
+        var saved: MedicineDraft? = null
+        show { saved = it }
+
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        save()
+
+        assertEquals(null, saved?.stock)
+        assertEquals(null, saved?.stockThreshold)
+    }
+
+    @Test
+    fun stockAndThresholdAreSavedWithTheMedicine() {
+        var saved: MedicineDraft? = null
+        show { saved = it }
+
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-stock").performScrollTo().performTextInput("60")
+        composeRule.onNodeWithTag("medicine-stock-threshold").performScrollTo().performTextInput("5")
+        save()
+
+        assertEquals(60, saved?.stock)
+        assertEquals(5, saved?.stockThreshold)
+    }
+
+    @Test
+    fun nonDigitsAreIgnoredInTheStockFields() {
+        var saved: MedicineDraft? = null
+        show { saved = it }
+
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-stock").performScrollTo().performTextInput("6a0")
+        save()
+
+        assertEquals(60, saved?.stock)
+    }
+
+    @Test
+    fun blankThresholdIsLeftForTheRepositoryDefault() {
+        var saved: MedicineDraft? = null
+        show { saved = it }
+
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-stock").performScrollTo().performTextInput("60")
+        save()
+
+        assertEquals(60, saved?.stock)
+        assertEquals(null, saved?.stockThreshold)
+    }
 }

@@ -61,7 +61,7 @@ Intervalo, escolhido por Remédio, entre o Lembrete de uma Dose e o seu Alarme d
 _Evitar_: soneca, tolerância
 
 **Estoque**:
-Quantidade restante de um Remédio, com um limite abaixo do qual a pessoa é avisada para repor.
+Quantidade restante de um Remédio, com um limite de aviso: quando a quantidade fica igual ou abaixo dele, a pessoa é avisada para repor.
 _Evitar_: saldo, inventário
 
 ## Água

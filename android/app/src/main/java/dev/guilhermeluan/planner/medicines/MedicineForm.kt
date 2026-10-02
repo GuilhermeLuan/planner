@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.day.StartDatePickerDialog
@@ -56,7 +58,7 @@ import java.time.format.TextStyle
 private val FirstDoseTime = LocalTime.of(8, 0)
 private val ExtraDoseTimeSuggestion = LocalTime.of(9, 0)
 
-/** Formulário "Novo remédio" (tela 05 do Figma), sem estoque nem alarme de dose. */
+/** Formulário "Novo remédio" (tela 05 do Figma), sem alarme de dose. */
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 fun MedicineForm(
@@ -68,6 +70,8 @@ fun MedicineForm(
     var amount by rememberSaveable { mutableStateOf(1) }
     var unit by rememberSaveable { mutableStateOf(DoseUnit.TABLET) }
     var times by rememberSaveable { mutableStateOf(listOf(FirstDoseTime.toString())) }
+    var stock by rememberSaveable { mutableStateOf("") }
+    var stockThreshold by rememberSaveable { mutableStateOf("") }
     var pickingTime by rememberSaveable { mutableStateOf(false) }
     var repeatKind by rememberSaveable { mutableStateOf(RepeatKind.DAILY) }
     var weekdays by rememberSaveable { mutableStateOf(setOf(initialDay.dayOfWeek.value)) }
@@ -173,10 +177,38 @@ fun MedicineForm(
             }
         }
 
+        FormField("Estoque") {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StockField(
+                    value = stock,
+                    onChange = { stock = it },
+                    placeholder = "Quantidade",
+                    suffix = unit.noun(stock.toIntOrNull() ?: 0),
+                    tag = "medicine-stock",
+                    modifier = Modifier.weight(1f),
+                )
+                StockField(
+                    value = stockThreshold,
+                    onChange = { stockThreshold = it },
+                    placeholder = "Avisar com",
+                    suffix = null,
+                    tag = "medicine-stock-threshold",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
         Button(
             enabled = name.trim().isNotEmpty() && repeatValid,
             onClick = {
-                onSave(MedicineDraft(name.trim(), amount, unit, times.map(LocalTime::parse).toSet(), repeat, initialDay))
+                val stockAmount = stock.toIntOrNull()
+                onSave(
+                    MedicineDraft(
+                        name.trim(), amount, unit, times.map(LocalTime::parse).toSet(), repeat, initialDay,
+                        stock = stockAmount,
+                        stockThreshold = stockThreshold.toIntOrNull(),
+                    ),
+                )
             },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
@@ -210,6 +242,28 @@ fun MedicineForm(
             },
         )
     }
+}
+
+@Composable
+private fun StockField(
+    value: String,
+    onChange: (String) -> Unit,
+    placeholder: String,
+    suffix: String?,
+    tag: String,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { input -> onChange(input.filter(Char::isDigit).take(5)) },
+        modifier = modifier.testTag(tag),
+        placeholder = { Text(placeholder, maxLines = 1) },
+        suffix = suffix?.takeIf { value.isNotEmpty() }?.let { { Text(it, maxLines = 1) } },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        shape = RoundedCornerShape(16.dp),
+        colors = formFieldColors(),
+    )
 }
 
 private enum class PeriodEdge { START, END }
