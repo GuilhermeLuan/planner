@@ -33,6 +33,7 @@ import dev.guilhermeluan.planner.session.AccountSettingsScreen
 import dev.guilhermeluan.planner.session.OnboardingScreen
 import dev.guilhermeluan.planner.session.PlannerAppUiState
 import dev.guilhermeluan.planner.session.PlannerViewModel
+import dev.guilhermeluan.planner.ui.navigation.PlannerTabHost
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 
 class MainActivity : ComponentActivity() {
@@ -70,7 +71,6 @@ private fun NotificationPermissionRequester(content: @Composable () -> Unit) {
 private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dayState by dayViewModel.uiState.collectAsStateWithLifecycle()
-    var showAccountSettings by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -108,30 +108,32 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel) 
         is PlannerAppUiState.Ready -> {
             val localPlanner = current.localPlanner
             LaunchedEffect(localPlanner.account.id, localPlanner.planner.id) { dayViewModel.bind(localPlanner) }
-            if (showAccountSettings) {
-                AccountSettingsScreen(
-                    currentName = localPlanner.account.username,
-                    currentTimezone = localPlanner.account.timezone,
-                    onSaveName = { viewModel.saveName(it) },
-                    onSaveTimezone = { viewModel.saveTimezone(it); dayViewModel.updateTimezone(it); showAccountSettings = false },
-                    onBack = { showAccountSettings = false },
-                    onExportBackup = { exportLauncher.launch("planner-backup.json") },
-                )
-            } else {
-                DayScreen(
-                    state = dayState,
-                    onSelectDay = dayViewModel::selectDay,
-                    onCreateTask = dayViewModel::createTask,
-                    onToggleTask = dayViewModel::toggleTask,
-                    onCreateRoutine = dayViewModel::createRoutine,
-                    onToggleRoutine = dayViewModel::toggleRoutine,
-                    onEditTask = dayViewModel::editTask,
-                    onRescheduleTask = dayViewModel::rescheduleTask,
-                    onArchiveTask = dayViewModel::archiveTask,
-                    onRestoreTask = dayViewModel::restoreTask,
-                    onOpenSettings = { showAccountSettings = true },
-                )
-            }
+            PlannerTabHost(
+                today = {
+                    DayScreen(
+                        state = dayState,
+                        onSelectDay = dayViewModel::selectDay,
+                        onCreateTask = dayViewModel::createTask,
+                        onToggleTask = dayViewModel::toggleTask,
+                        onCreateRoutine = dayViewModel::createRoutine,
+                        onToggleRoutine = dayViewModel::toggleRoutine,
+                        onEditTask = dayViewModel::editTask,
+                        onRescheduleTask = dayViewModel::rescheduleTask,
+                        onArchiveTask = dayViewModel::archiveTask,
+                        onRestoreTask = dayViewModel::restoreTask,
+                        userName = localPlanner.account.username,
+                    )
+                },
+                you = {
+                    AccountSettingsScreen(
+                        currentName = localPlanner.account.username,
+                        currentTimezone = localPlanner.account.timezone,
+                        onSaveName = { viewModel.saveName(it) },
+                        onSaveTimezone = { viewModel.saveTimezone(it); dayViewModel.updateTimezone(it) },
+                        onExportBackup = { exportLauncher.launch("planner-backup.json") },
+                    )
+                },
+            )
         }
     }
 }

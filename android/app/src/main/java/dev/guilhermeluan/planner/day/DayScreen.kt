@@ -1,5 +1,8 @@
 package dev.guilhermeluan.planner.day
 
+import dev.guilhermeluan.planner.ui.components.PlannerScene
+import dev.guilhermeluan.planner.ui.components.SceneColors
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,13 +77,14 @@ fun DayScreen(
     onSelectDay: (LocalDate) -> Unit,
     onCreateTask: (TaskDraft) -> Unit,
     onToggleTask: (String, Boolean) -> Unit,
-    onOpenSettings: () -> Unit = {},
     onCreateRoutine: (RoutineDraft) -> Unit = {},
     onToggleRoutine: (String, LocalDate, RoutineOccurrenceStatus) -> Unit = { _, _, _ -> },
     onEditTask: (String, String, LocalTime?) -> Unit = { _, _, _ -> },
     onRescheduleTask: (String, LocalDate) -> Unit = { _, _ -> },
     onArchiveTask: (String) -> Unit = {},
     onRestoreTask: (String) -> Unit = {},
+    userName: String = "",
+    now: LocalTime = LocalTime.now(),
     modifier: Modifier = Modifier,
 ) {
     var showCreateTask by rememberSaveable { mutableStateOf(false) }
@@ -112,9 +116,7 @@ fun DayScreen(
                 item {
                     DayHeader(
                         selectedDay = selectedDay,
-                        onPrevious = { onSelectDay(selectedDay.minusDays(1)) },
-                        onNext = { onSelectDay(selectedDay.plusDays(1)) },
-                        onOpenSettings = onOpenSettings,
+                        greeting = DayGreeting.text(now, userName),
                         onOpenCalendar = { showCalendar = true },
                     )
                 }
@@ -389,54 +391,44 @@ fun DayScreen(
 @Composable
 private fun DayHeader(
     selectedDay: LocalDate,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onOpenSettings: () -> Unit,
+    greeting: String,
     onOpenCalendar: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.padding(start = 24.dp, top = 28.dp, end = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+    Box(Modifier.fillMaxWidth().height(290.dp)) {
+        PlannerScene(SceneColors.Today, height = 290.dp)
+        Column(
+            modifier = Modifier.padding(start = 24.dp, top = 56.dp, end = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "PLANNER · HOJE",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = selectedDay.format(
-                        DateTimeFormatter.ofPattern("d 'de' MMMM", Locale("pt", "BR")),
-                    ),
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            Row {
-                IconButton(onClick = onOpenSettings, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Outlined.Settings, contentDescription = "Configurações")
-                }
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onPrevious, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Outlined.ChevronLeft, contentDescription = "Dia anterior")
-            }
             Text(
-                text = "Navegar pelos dias",
+                text = selectedDay.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("pt", "BR"))
+                    .removeSuffix("-feira")
+                    .replaceFirstChar(Char::uppercase) +
+                    ", " + selectedDay.format(DateTimeFormatter.ofPattern("d 'de' MMMM", Locale("pt", "BR"))),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+                color = Color.White.copy(alpha = 0.85f),
             )
-            TextButton(onClick = onOpenCalendar) { Text("Calendário") }
-            IconButton(onClick = onNext, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Outlined.ChevronRight, contentDescription = "Próximo dia")
+            Text(
+                text = greeting,
+                style = MaterialTheme.typography.displaySmall,
+                color = Color.White,
+            )
+            TextButton(
+                onClick = onOpenCalendar,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.2f)),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+            ) {
+                Text("Ver mês", color = Color.White, style = MaterialTheme.typography.labelMedium)
             }
         }
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(30.dp)
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .background(MaterialTheme.colorScheme.background),
+        )
     }
 }
 

@@ -1,5 +1,17 @@
 package dev.guilhermeluan.planner.session
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import dev.guilhermeluan.planner.ui.components.PlannerScene
+import dev.guilhermeluan.planner.ui.components.SceneColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,7 +45,7 @@ fun AccountSettingsScreen(
     currentTimezone: String,
     onSaveName: (String) -> Unit,
     onSaveTimezone: (String) -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
     onExportBackup: () -> Unit = {},
     detectedTimezone: String = AccountTimezones.detected(),
     modifier: Modifier = Modifier,
@@ -53,24 +65,54 @@ fun AccountSettingsScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = "Voltar")
+        Box(Modifier.fillMaxSize()) {
+            PlannerScene(SceneColors.Account, height = 260.dp)
+            Column(
+                Modifier.fillMaxWidth().padding(top = 56.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.size(96.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.size(84.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            currentName.trim().take(1).uppercase().ifEmpty { "?" },
+                            style = MaterialTheme.typography.displaySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 Text(
-                    text = "Configurações da Conta",
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.padding(start = 8.dp, top = 10.dp),
+                    currentName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White,
+                    modifier = Modifier.padding(top = 10.dp),
                 )
             }
+            if (onBack != null) {
+                IconButton(onClick = onBack, modifier = Modifier.padding(start = 8.dp, top = 40.dp).size(48.dp)) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = "Voltar", tint = Color.White)
+                }
+            }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 232.dp)
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .background(MaterialTheme.colorScheme.background)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                shape = RoundedCornerShape(22.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
@@ -123,8 +165,9 @@ fun AccountSettingsScreen(
             }
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                shape = RoundedCornerShape(22.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
@@ -142,6 +185,7 @@ fun AccountSettingsScreen(
                     )
                 }
             }
+        }
         }
     }
 }
