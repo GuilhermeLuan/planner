@@ -77,8 +77,8 @@ fun SettingsScreen(
                 Text("Você", style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp), color = Color.White)
             }
             Column(Modifier.padding(start = 24.dp, top = 88.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Configurações", style = MaterialTheme.typography.displaySmall, color = Color(0xFFFFF4F8))
-                Text("Conta, lembretes e dados", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFFFE1EA))
+                Text("Configurações", style = MaterialTheme.typography.displaySmall, color = SceneTitleInk)
+                Text("Conta, lembretes e dados", style = MaterialTheme.typography.bodyMedium, color = SettingsSubtitleInk)
             }
             Column(
                 Modifier
@@ -97,7 +97,11 @@ fun SettingsScreen(
                 SettingsGroup("Lembretes e dados") {
                     SettingRow(
                         "Notificações", "Rotinas, remédios e água",
-                        if (state.notificationsEnabled) "Ativas" else "Desativadas",
+                        when (state.notificationsEnabled) {
+                            true -> "Ativas"
+                            false -> "Desativadas"
+                            null -> "Verificar"
+                        },
                         onClick = onOpenNotificationSettings,
                     )
                     SettingRow("Itens arquivados", "Tarefas, rotinas e remédios", "Ver") { sheet = SettingsSheet.Archived }

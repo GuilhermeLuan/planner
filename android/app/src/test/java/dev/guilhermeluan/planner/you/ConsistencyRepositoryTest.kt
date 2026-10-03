@@ -158,6 +158,17 @@ class ConsistencyRepositoryTest {
     }
 
     @Test
+    fun memberSinceAlsoLooksAtWaterAndMedicines() = runTest {
+        water.add(account.id, LocalDate.of(2026, 5, 3), 200)
+        planner.createMedicine(
+            account.id, plannerRef.id,
+            MedicineDraft("Vitamina D", 1, DoseUnit.CAPSULE, setOf(LocalTime.of(8, 0)), MedicineRepeat.Daily, LocalDate.of(2026, 6, 20)),
+        )
+
+        assertEquals(YearMonth.of(2026, 5), consistency.memberSince(account.id, zone))
+    }
+
+    @Test
     fun memberSinceIsRememberedOnceDiscovered() = runTest {
         assertEquals(YearMonth.of(2026, 9), consistency.memberSince(account.id, zone))
 

@@ -25,14 +25,15 @@ class ConsistencyRepository(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observe(accountId: String, zone: ZoneId): Flow<Consistency> {
         val now = clock.instant()
-        val today = now.atZone(zone).toLocalDate()
+        val today = today(zone)
         val month = YearMonth.from(today)
         val streak = database.waterDao().observeEarliestIntakeDay(accountId).flatMapLatest { earliest ->
             val from = earliest?.let(LocalDate::parse) ?: today
             water.observeWeek(accountId, from..today).map { Consistency.waterStreak(it, today) }
         }
         val onTimePercent = planner.observeDosesBetween(accountId, month.atDay(1)..today).map { doses ->
-            // Ainda sem o campo de Alarme de Dose no Remédio, "no horário" é só a tolerância do Lembrete.
+            // TODO(#27): com o Alarme de Dose no Remédio, passar o Atraso do alarme de cada Dose no lugar de null.
+            // Até lá, "no horário" é só a tolerância de 30 min depois do Lembrete.
             DoseTimeliness.onTimePercent(doses, now, zone) { null }
         }
         val routinesDone = database.routineDao()
@@ -41,21 +42,25 @@ class ConsistencyRepository(
     }
 
     /**
-     * O mês da coisa mais antiga do Planner (Tarefa, Rotina ou Consumo de água), ou o mês de hoje num Planner
+     * O mês da coisa mais antiga do Planner (Tarefa, Rotina, Remédio ou Consumo de água), ou o mês de hoje num Planner
      * vazio. Fica gravado na primeira vez, para não andar junto com o calendário.
      */
     suspend fun memberSince(accountId: String, zone: ZoneId): YearMonth {
         val session = database.sessionDao()
         session.metadata(MEMBER_SINCE_KEY)?.let { return YearMonth.parse(it) }
-        val today = clock.instant().atZone(zone).toLocalDate()
+        val today = today(zone)
         val earliest = listOfNotNull(
             database.plannerDao().earliestTaskDay(accountId),
             database.routineDao().earliestStartDate(accountId),
+            database.medicineDao().earliestStartDate(accountId),
+            database.waterDao().earliestIntakeDay(accountId),
         ).map(LocalDate::parse).minOrNull() ?: today
         return YearMonth.from(minOf(earliest, today)).also {
             session.saveMetadata(SessionMetadataEntity(MEMBER_SINCE_KEY, it.toString()))
         }
     }
+
+    private fun today(zone: ZoneId): LocalDate = clock.instant().atZone(zone).toLocalDate()
 
     private companion object {
         const val MEMBER_SINCE_KEY = "member_since"

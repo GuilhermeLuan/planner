@@ -20,7 +20,7 @@ import java.time.ZoneId
 
 class YouViewModel(
     private val consistency: ConsistencyRepository,
-    private val planner: RoomPlannerRepository,
+    private val archive: RoomPlannerRepository,
     private val backup: BackupExporter,
     private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
@@ -28,7 +28,7 @@ class YouViewModel(
         YouUiState(
             name = "", timezone = ZoneId.systemDefault().id, memberSince = null,
             today = clock.instant().atZone(ZoneId.systemDefault()).toLocalDate(),
-            consistency = null, notificationsEnabled = true, lastBackup = null, archived = ArchivedItems(),
+            consistency = null, notificationsEnabled = null, lastBackup = null, archived = ArchivedItems(),
         ),
     )
     val uiState: StateFlow<YouUiState> = _uiState.asStateFlow()
@@ -51,13 +51,13 @@ class YouViewModel(
             _uiState.update { it.copy(memberSince = memberSince) }
             combine(
                 consistency.observe(account.id, zone),
-                planner.observeArchivedItems(account.id),
+                archive.observeArchivedItems(account.id),
                 backup.observeLastSaved(),
             ) { numbers, archived, lastBackup ->
-                Triple(numbers, archived, lastBackup?.atZone(zone)?.toLocalDate())
-            }.collect { (numbers, archived, lastBackup) ->
-                _uiState.update { it.copy(consistency = numbers, archived = archived, lastBackup = lastBackup) }
-            }
+                { state: YouUiState ->
+                    state.copy(consistency = numbers, archived = archived, lastBackup = lastBackup?.atZone(zone)?.toLocalDate())
+                }
+            }.collect { apply -> _uiState.update(apply) }
         }
     }
 

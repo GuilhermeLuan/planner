@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.R
+import dev.guilhermeluan.planner.session.AccountTimezones
 import dev.guilhermeluan.planner.tasks.ArchivedItems
 import dev.guilhermeluan.planner.ui.components.PlannerScene
 import dev.guilhermeluan.planner.ui.components.PtBr
@@ -57,13 +58,15 @@ data class YouUiState(
     val memberSince: YearMonth?,
     val today: LocalDate,
     val consistency: Consistency?,
-    val notificationsEnabled: Boolean,
+    /** Nulo até o sistema ser consultado, para não afirmar "Ativas" sem saber. */
+    val notificationsEnabled: Boolean?,
     val lastBackup: LocalDate?,
     val archived: ArchivedItems,
 )
 
-private val SceneTitleInk = Color(0xFFFFF4F8)
+internal val SceneTitleInk = Color(0xFFFFF4F8)
 private val SceneSubtitleInk = Color(0xFFF6C9DA)
+internal val SettingsSubtitleInk = Color(0xFFFFE1EA)
 private val ScenePillFill = Color.White.copy(alpha = 0.16f)
 
 /** Tons dos blocos de constância e dos cartões; os claros são os do Figma, os escuros seguem os tokens noturnos. */
@@ -112,7 +115,7 @@ fun YouTab(
     onRestoreRoutine: (String) -> Unit,
     onRestoreMedicine: (String) -> Unit,
     modifier: Modifier = Modifier,
-    detectedTimezone: String = dev.guilhermeluan.planner.session.AccountTimezones.detected(),
+    detectedTimezone: String = AccountTimezones.detected(),
 ) {
     var inSettings by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = inSettings) { inSettings = false }
@@ -142,7 +145,6 @@ fun YouScreen(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val palette = PlannerExtras.palette
     Surface(modifier.fillMaxSize().testTag("you-screen"), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             PlannerScene(SceneColors.Account, height = 260.dp)

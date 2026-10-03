@@ -159,6 +159,9 @@ abstract class MedicineDao {
     @Query("SELECT * FROM medicines WHERE accountId = :accountId")
     abstract fun observeMedicines(accountId: String): Flow<List<MedicineEntity>>
 
+    @Query("SELECT MIN(startDate) FROM medicines WHERE accountId = :accountId")
+    abstract suspend fun earliestStartDate(accountId: String): String?
+
     @Query("SELECT * FROM medicines WHERE accountId = :accountId AND id = :medicineId")
     abstract suspend fun medicine(accountId: String, medicineId: String): MedicineEntity?
 

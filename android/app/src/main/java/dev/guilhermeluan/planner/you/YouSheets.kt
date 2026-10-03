@@ -121,18 +121,20 @@ internal fun ArchivedItemsSheet(
                 if (items.isEmpty) {
                     Text("Nada arquivado", style = MaterialTheme.typography.bodyMedium, color = PlannerExtras.palette.mutedInk)
                 }
-                ArchivedGroup("Tarefas", items.tasks.map { Triple(it.id, it.title, it.day.toString()) }, "restore-task", onRestoreTask)
-                ArchivedGroup("Rotinas", items.routines.map { Triple(it.id, it.title, null) }, "restore-routine", onRestoreRoutine)
-                ArchivedGroup("Remédios", items.medicines.map { Triple(it.id, it.name, null) }, "restore-medicine", onRestoreMedicine)
+                ArchivedGroup("Tarefas", items.tasks.map { ArchivedEntry(it.id, it.title, it.day.toString()) }, "restore-task", onRestoreTask)
+                ArchivedGroup("Rotinas", items.routines.map { ArchivedEntry(it.id, it.title) }, "restore-routine", onRestoreRoutine)
+                ArchivedGroup("Remédios", items.medicines.map { ArchivedEntry(it.id, it.name) }, "restore-medicine", onRestoreMedicine)
             }
         }
     }
 }
 
+private data class ArchivedEntry(val id: String, val label: String, val detail: String? = null)
+
 @Composable
 private fun ArchivedGroup(
     title: String,
-    entries: List<Triple<String, String, String?>>,
+    entries: List<ArchivedEntry>,
     tagPrefix: String,
     onRestore: (String) -> Unit,
 ) {
