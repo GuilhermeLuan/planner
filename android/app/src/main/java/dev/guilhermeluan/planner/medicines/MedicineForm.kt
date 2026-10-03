@@ -84,6 +84,8 @@ fun MedicineForm(
         mutableStateOf(medicine?.times?.sorted()?.map(LocalTime::toString) ?: listOf(FirstDoseTime.toString()))
     }
     var stock by rememberSaveable { mutableStateOf(medicine?.stock?.amount?.toString().orEmpty()) }
+    // O Estoque pode mudar com o formulário aberto (um "Tomei" na notificação); o que vale é o da abertura.
+    val stockAsShown by rememberSaveable { mutableStateOf(medicine?.stock?.amount) }
     var stockThreshold by rememberSaveable { mutableStateOf(medicine?.stock?.threshold?.toString().orEmpty()) }
     var pickingTime by rememberSaveable { mutableStateOf(false) }
     var repeatKind by rememberSaveable {
@@ -240,6 +242,7 @@ fun MedicineForm(
                         name.trim(), amount, unit, times.map(LocalTime::parse).toSet(), repeat, initialDay,
                         stock = stockAmount,
                         stockThreshold = stockThreshold.toIntOrNull(),
+                        stockAsShown = stockAsShown,
                     ),
                 )
             },

@@ -89,6 +89,7 @@ fun MedicinesScreen(
     today: LocalDate,
     zone: ZoneId,
     onSetDoseStatus: (PlannedDose, DoseStatus) -> Unit,
+    onSnoozeDose: (PlannedDose) -> Unit,
     onCreateMedicine: (MedicineDraft) -> Unit,
     onEditMedicine: (medicineId: String, MedicineDraft) -> Unit,
     onArchiveMedicine: (medicineId: String) -> Unit,
@@ -122,7 +123,11 @@ fun MedicinesScreen(
                         item {
                             Box(Modifier.padding(horizontal = 20.dp)) {
                                 if (nextDose != null) {
-                                    NextDoseCard(nextDose) { onSetDoseStatus(nextDose, DoseStatus.TAKEN) }
+                                    NextDoseCard(
+                                        nextDose,
+                                        onTake = { onSetDoseStatus(nextDose, DoseStatus.TAKEN) },
+                                        onSnooze = { onSnoozeDose(nextDose) },
+                                    )
                                 } else {
                                     AllDoneCard()
                                 }
@@ -242,7 +247,7 @@ private fun MedicinesHeader(state: MedicinesUiState, today: LocalDate) {
 }
 
 @Composable
-private fun NextDoseCard(dose: PlannedDose, onTake: () -> Unit) {
+private fun NextDoseCard(dose: PlannedDose, onTake: () -> Unit, onSnooze: () -> Unit) {
     val palette = PlannerExtras.palette
     Column(
         Modifier
@@ -274,17 +279,30 @@ private fun NextDoseCard(dose: PlannedDose, onTake: () -> Unit) {
                 )
             }
         }
-        Button(
-            onClick = onTake,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(vertical = 13.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) {
-            Text("Marcar como tomado", style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onTake,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(22.dp),
+                contentPadding = PaddingValues(vertical = 13.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Text("Marcar como tomado", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold))
+            }
+            Button(
+                onClick = onSnooze,
+                shape = RoundedCornerShape(22.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                ),
+            ) {
+                Text("Adiar", style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }

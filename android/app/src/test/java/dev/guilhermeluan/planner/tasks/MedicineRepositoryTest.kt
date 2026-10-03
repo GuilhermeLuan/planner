@@ -419,6 +419,21 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun aDoseTakenWhileTheEditFormIsOpenIsNotUndoneBySavingTheUntouchedStock() = runTest {
+        val medicine = create(stock = 10, threshold = 3)
+        // O formulário abre mostrando 10; enquanto isso, "Tomei" na notificação desconta 1.
+        val draft = draftOf(medicine, name = "Vitamina D3").copy(stockAsShown = 10)
+        repository.setDoseStatus(account.id, medicine.id, thursday, LocalTime.of(13, 0), DoseStatus.TAKEN)
+
+        edit(medicine, draft)
+
+        val edited = repository.observeMedicines(account.id).first().single()
+        assertEquals("Vitamina D3", edited.name)
+        assertEquals(9, edited.stock?.amount)
+        assertEquals(10, edited.stock?.capacity)
+    }
+
+    @Test
     fun editingStockReplacesItAndUndoingAnEarlierTakenDoseStillReturnsWhatItDeducted() = runTest {
         val medicine = create(amount = 2, stock = 10, threshold = 3)
         repository.setDoseStatus(account.id, medicine.id, thursday, LocalTime.of(13, 0), DoseStatus.TAKEN)

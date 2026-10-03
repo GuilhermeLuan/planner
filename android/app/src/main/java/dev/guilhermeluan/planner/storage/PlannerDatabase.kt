@@ -16,8 +16,9 @@ import androidx.room.RoomDatabase
         DoseRecordEntity::class,
         MedicinePreviousVersionEntity::class,
         MedicineArchivedPeriodEntity::class,
+        DoseSnoozeEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
@@ -158,6 +159,24 @@ abstract class PlannerDatabase : RoomDatabase() {
                     )""",
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_medicine_archived_periods_medicineId ON medicine_archived_periods(medicineId)")
+            }
+        }
+
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS dose_snoozes (
+                        medicineId TEXT NOT NULL,
+                        day TEXT NOT NULL,
+                        time TEXT NOT NULL,
+                        accountId TEXT NOT NULL,
+                        snoozedUntil TEXT NOT NULL,
+                        PRIMARY KEY(medicineId, day, time),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(medicineId) REFERENCES medicines(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_dose_snoozes_accountId_day ON dose_snoozes(accountId, day)")
             }
         }
     }

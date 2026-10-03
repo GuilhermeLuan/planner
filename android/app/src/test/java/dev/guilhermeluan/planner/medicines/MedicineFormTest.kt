@@ -1,5 +1,8 @@
 package dev.guilhermeluan.planner.medicines
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
@@ -214,10 +217,26 @@ class MedicineFormTest {
             MedicineDraft(
                 "Ferro quelato", 2, DoseUnit.TABLET, setOf(LocalTime.of(7, 0), LocalTime.of(19, 30)),
                 MedicineRepeat.Weekdays(setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY)), thursday,
-                stock = 20, stockThreshold = 5,
+                stock = 20, stockThreshold = 5, stockAsShown = 12,
             ),
             saved,
         )
+    }
+
+    @Test
+    fun stockAsShownStaysTheOneFromWhenTheFormOpenedEvenIfADoseIsTakenMeanwhile() {
+        var saved: MedicineDraft? = null
+        var medicine by mutableStateOf(ferro)
+        composeRule.setContent {
+            PlannerTheme { MedicineForm(initialDay = thursday, onSave = { saved = it }, medicine = medicine) }
+        }
+
+        medicine = ferro.copy(stock = MedicineStock(10, 30, 5))
+        composeRule.waitForIdle()
+        save()
+
+        assertEquals(12, saved?.stock)
+        assertEquals(12, saved?.stockAsShown)
     }
 
     @Test

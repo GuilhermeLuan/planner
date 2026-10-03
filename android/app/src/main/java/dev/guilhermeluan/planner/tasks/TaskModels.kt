@@ -116,12 +116,19 @@ data class MedicineStock(val amount: Int, val capacity: Int, val threshold: Int)
 
 /**
  * Estoque informado no formulário, dado o Estoque [current] (nulo no cadastro). Sem quantidade, o Estoque
- * é limpo. A mesma quantidade mantém a escala da barra; outra funciona como reposição e a redefine.
+ * é limpo. Se a quantidade é a que o formulário mostrava ao abrir, ela não foi mexida e o Estoque atual
+ * fica, mesmo que uma Dose tomada enquanto isso o tenha mudado. A mesma quantidade mantém a escala da
+ * barra; outra funciona como reposição e a redefine.
  */
-fun MedicineDraft.toStock(current: MedicineStock? = null): MedicineStock? =
-    stock?.let {
-        MedicineStock(it, capacity = if (current != null && it == current.amount) current.capacity else it, threshold = stockThreshold ?: 0)
+fun MedicineDraft.toStock(current: MedicineStock? = null): MedicineStock? {
+    val amount = stock ?: return null
+    val threshold = stockThreshold ?: 0
+    return when {
+        current != null && amount == stockAsShown -> current.copy(threshold = threshold)
+        current != null && amount == current.amount -> current.copy(threshold = threshold)
+        else -> MedicineStock(amount, capacity = amount, threshold = threshold)
     }
+}
 
 /** O rascunho pronto para gravar, com o nome aparado; falha com [IllegalArgumentException] se for inválido. */
 fun MedicineDraft.validated(): MedicineDraft {
@@ -179,6 +186,8 @@ data class MedicineDraft(
     val startDate: LocalDate,
     val stock: Int? = null,
     val stockThreshold: Int? = null,
+    /** Estoque que o formulário de edição mostrava ao abrir; nulo no cadastro. */
+    val stockAsShown: Int? = null,
 )
 
 data class PlannedDose(
@@ -190,4 +199,6 @@ data class PlannedDose(
     val time: LocalTime,
     val status: DoseStatus = DoseStatus.PENDING,
     val takenAt: Instant? = null,
+    /** Quando o Lembrete da Dose volta, se ela foi adiada. */
+    val snoozedUntil: Instant? = null,
 )

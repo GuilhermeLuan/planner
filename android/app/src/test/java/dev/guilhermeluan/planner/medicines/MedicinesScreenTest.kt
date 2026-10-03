@@ -84,6 +84,7 @@ class MedicinesScreenTest {
         onArchiveMedicine: (String) -> Unit = {},
         onRestoreMedicine: (String) -> Unit = {},
         lastRegisteredDays: Map<String, LocalDate> = emptyMap(),
+        onSnoozeDose: (PlannedDose) -> Unit = {},
         onSetDoseStatus: (PlannedDose, DoseStatus) -> Unit = { _, _ -> },
     ) = composeRule.setContent {
         PlannerTheme {
@@ -95,6 +96,7 @@ class MedicinesScreenTest {
                 today = clockToday,
                 zone = zone,
                 onSetDoseStatus = onSetDoseStatus,
+                onSnoozeDose = onSnoozeDose,
                 onCreateMedicine = onCreateMedicine,
             )
         }
@@ -110,15 +112,24 @@ class MedicinesScreenTest {
     }
 
     @Test
-    fun nextPendingDoseIsHighlightedAndCanBeTakenWithoutSnoozeYet() {
+    fun nextPendingDoseIsHighlightedAndCanBeTaken() {
         var change: Pair<PlannedDose, DoseStatus>? = null
         show { dose, status -> change = dose to status }
 
         composeRule.onNodeWithText("Próxima dose às 13:00").assertIsDisplayed()
-        composeRule.onNodeWithText("Adiar").assertDoesNotExist()
         composeRule.onNodeWithText("Marcar como tomado").performClick()
 
         assertEquals(vitamin to DoseStatus.TAKEN, change)
+    }
+
+    @Test
+    fun nextPendingDoseCanBeSnoozedFromTheHighlight() {
+        var snoozed: PlannedDose? = null
+        show(onSnoozeDose = { snoozed = it })
+
+        composeRule.onNodeWithText("Adiar").performClick()
+
+        assertEquals(vitamin, snoozed)
     }
 
     @Test

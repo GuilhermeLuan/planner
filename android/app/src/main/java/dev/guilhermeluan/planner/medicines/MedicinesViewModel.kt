@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.guilhermeluan.planner.PlannerApplication
+import dev.guilhermeluan.planner.notifications.DoseReminder
+import dev.guilhermeluan.planner.notifications.DoseReminderAction
+import dev.guilhermeluan.planner.notifications.MedicineReminderCoordinator
 import dev.guilhermeluan.planner.session.LocalPlanner
 import dev.guilhermeluan.planner.tasks.DoseStatus
-import dev.guilhermeluan.planner.tasks.IdGenerator
 import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.PlannedDose
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
@@ -21,10 +23,10 @@ import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.UUID
 
 class MedicinesViewModel(
     private val repository: RoomPlannerRepository,
+    private val reminders: MedicineReminderCoordinator,
     private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
     private val selectedDay = MutableStateFlow(LocalDate.now(clock))
@@ -43,6 +45,7 @@ class MedicinesViewModel(
         plannerId = localPlanner.planner.id
         zone = ZoneId.of(localPlanner.account.timezone)
         selectedDay.value = today()
+        reconcileReminders()
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             selectedDay
@@ -63,6 +66,7 @@ class MedicinesViewModel(
     /** Segue o Fuso da Conta (ADR 0022) para editar, arquivar e restaurar contarem a partir do "hoje" certo. */
     fun updateTimezone(timezone: String) {
         zone = ZoneId.of(timezone)
+        reconcileReminders()
     }
 
     private fun today(): LocalDate = LocalDate.now(clock.withZone(zone))
@@ -71,37 +75,54 @@ class MedicinesViewModel(
         selectedDay.value = day
     }
 
-    fun setDoseStatus(dose: PlannedDose, status: DoseStatus) {
+    fun setDoseStatus(dose: PlannedDose, status: DoseStatus) = changeAndReconcile { account ->
+        repository.setDoseStatus(account, dose.medicineId, dose.day, dose.time, status)
+    }
+
+    /** Adia o Lembrete da Dose; ela continua pendente. */
+    fun snoozeDose(dose: PlannedDose) {
         val account = accountId ?: return
-        viewModelScope.launch { repository.setDoseStatus(account, dose.medicineId, dose.day, dose.time, status) }
+        viewModelScope.launch {
+            reminders.applyAction(
+                account, zone.id, DoseReminder.keyOf(dose.medicineId, dose.day, dose.time), DoseReminderAction.SNOOZE,
+            )
+        }
     }
 
     fun createMedicine(draft: MedicineDraft) {
-        val account = accountId ?: return
         val planner = plannerId ?: return
-        viewModelScope.launch { repository.createMedicine(account, planner, draft) }
+        changeAndReconcile { account -> repository.createMedicine(account, planner, draft) }
     }
 
-    fun editMedicine(medicineId: String, draft: MedicineDraft) {
-        val account = accountId ?: return
-        viewModelScope.launch { repository.editMedicine(account, medicineId, draft, today()) }
+    fun editMedicine(medicineId: String, draft: MedicineDraft) = changeAndReconcile { account ->
+        repository.editMedicine(account, medicineId, draft, today())
     }
 
-    fun archiveMedicine(medicineId: String) {
-        val account = accountId ?: return
-        viewModelScope.launch { repository.archiveMedicine(account, medicineId, today()) }
+    fun archiveMedicine(medicineId: String) = changeAndReconcile { account ->
+        repository.archiveMedicine(account, medicineId, today())
     }
 
-    fun restoreMedicine(medicineId: String) {
+    fun restoreMedicine(medicineId: String) = changeAndReconcile { account ->
+        repository.restoreMedicine(account, medicineId, today())
+    }
+
+    private fun changeAndReconcile(change: suspend (accountId: String) -> Unit) {
         val account = accountId ?: return
-        viewModelScope.launch { repository.restoreMedicine(account, medicineId, today()) }
+        viewModelScope.launch {
+            change(account)
+            reminders.reconcile(account, zone.id)
+        }
+    }
+
+    private fun reconcileReminders() {
+        val account = accountId ?: return
+        val timezone = zone.id
+        viewModelScope.launch { reminders.reconcile(account, timezone) }
     }
 
     class Factory(private val application: PlannerApplication) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            MedicinesViewModel(
-                RoomPlannerRepository(application.database, IdGenerator { UUID.randomUUID().toString() }, Clock.systemUTC()),
-            ) as T
+            MedicinesViewModel(application.medicinesRepository, application.medicineReminders) as T
     }
 }
