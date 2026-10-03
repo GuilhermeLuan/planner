@@ -3,6 +3,8 @@ package dev.guilhermeluan.planner.medicines
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import dev.guilhermeluan.planner.notifications.FakeDoseReminderGateway
+import dev.guilhermeluan.planner.notifications.MedicineReminderCoordinator
 import dev.guilhermeluan.planner.session.Account
 import dev.guilhermeluan.planner.session.LocalPlanner
 import dev.guilhermeluan.planner.session.Planner
@@ -13,7 +15,10 @@ import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.MedicineRepeat
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import dev.guilhermeluan.planner.testsupport.seed
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -21,6 +26,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -38,6 +44,8 @@ import java.time.ZoneOffset
 class MedicinesViewModelTest {
     private lateinit var database: PlannerDatabase
     private lateinit var repository: RoomPlannerRepository
+    private lateinit var reminders: MedicineReminderCoordinator
+    private val gateway = FakeDoseReminderGateway()
     private val account = Account("account-1", "ana", "America/Sao_Paulo", false)
     private val planner = Planner("planner-1", account.id)
 
@@ -55,10 +63,17 @@ class MedicinesViewModelTest {
         ).allowMainThreadQueries().build()
         var next = 0
         repository = RoomPlannerRepository(database, { "id-${next++}" }, clock)
+        reminders = MedicineReminderCoordinator(repository, gateway, clock)
     }
+
+    private val viewModels = mutableListOf<MedicinesViewModel>()
+
+    private fun viewModel() = MedicinesViewModel(repository, reminders, clock).also { viewModels += it }
 
     @After
     fun tearDown() {
+        // A reconciliação dos Lembretes pode seguir depois das asserções; ela para antes de o banco fechar.
+        runBlocking { viewModels.forEach { it.viewModelScope.coroutineContext[Job]!!.children.forEach { job -> job.cancelAndJoin() } } }
         database.close()
         Dispatchers.resetMain()
     }
@@ -71,7 +86,7 @@ class MedicinesViewModelTest {
             planner.id,
             MedicineDraft("Vitamina D", 1, DoseUnit.CAPSULE, setOf(LocalTime.of(13, 0)), MedicineRepeat.Daily, october1),
         )
-        val viewModel = MedicinesViewModel(repository, clock)
+        val viewModel = viewModel()
         viewModel.bind(LocalPlanner(account, planner))
 
         viewModel.updateTimezone("Asia/Tokyo")
@@ -90,12 +105,44 @@ class MedicinesViewModelTest {
             planner.id,
             MedicineDraft("Vitamina D", 1, DoseUnit.CAPSULE, setOf(LocalTime.of(13, 0)), MedicineRepeat.Daily, october1),
         )
-        val viewModel = MedicinesViewModel(repository, clock)
+        val viewModel = viewModel()
         viewModel.bind(LocalPlanner(account, planner))
 
         repository.setDoseStatus(account.id, medicine.id, october1, LocalTime.of(13, 0), DoseStatus.TAKEN)
 
         val state = withTimeout(5_000) { viewModel.uiState.first { it.lastRegisteredDays.isNotEmpty() } }
         assertEquals(mapOf(medicine.id to october1), state.lastRegisteredDays)
+    }
+
+    @Test
+    fun openingTheAppSchedulesTheDoseRemindersOfExistingMedicines() = runBlocking {
+        database.seed(account, planner)
+        repository.createMedicine(
+            account.id,
+            planner.id,
+            MedicineDraft("Vitamina D", 1, DoseUnit.CAPSULE, setOf(LocalTime.of(13, 0)), MedicineRepeat.Daily, october1),
+        )
+        val viewModel = viewModel()
+
+        viewModel.bind(LocalPlanner(account, planner))
+
+        withTimeout(5_000) { while (gateway.reminders.isEmpty()) yield() }
+        assertEquals(Instant.parse("2026-10-02T16:00:00Z"), gateway.reminders.minOf { it.triggerAt })
+    }
+
+    @Test
+    fun snoozingTheNextDoseRemindsAgainInTenMinutes() = runBlocking {
+        database.seed(account, planner)
+        val viewModel = viewModel()
+        viewModel.bind(LocalPlanner(account, planner))
+        viewModel.createMedicine(
+            MedicineDraft("Magnésio", 1, DoseUnit.TABLET, setOf(LocalTime.of(22, 0)), MedicineRepeat.Daily, october1),
+        )
+        val late = withTimeout(5_000) { viewModel.uiState.first { it.doses.isNotEmpty() } }.doses.single()
+
+        viewModel.snoozeDose(late)
+
+        withTimeout(5_000) { while (gateway.reminders.none { it.day == october1 }) yield() }
+        assertEquals(Instant.parse("2026-10-02T01:40:00Z"), gateway.reminders.single { it.day == october1 }.triggerAt)
     }
 }

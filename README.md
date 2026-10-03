@@ -10,6 +10,40 @@ Planner pessoal local-only para Android, com rotinas recorrentes, tarefas pontua
 - Não há servidor, login remoto, sincronização ou dependência de rede.
 - `docs/adr/0023-local-only-android-planner.md` registra a decisão vigente.
 
+## Subir emulador e compilar
+
+### Iniciar o emulador Android
+
+1. Abra o Android Studio
+2. Vá em **Device Manager** (lado direito)
+3. Selecione um emulador e clique no botão de play ▶️
+
+Ou via CLI:
+```sh
+emulator -avd <nome_do_emulador>
+```
+
+Para listar emuladores disponíveis:
+```sh
+emulator -list-avds
+```
+
+### Compilar e instalar no emulador
+
+```sh
+cd android
+./gradlew installDebug
+```
+
+Este comando compila o projeto, gera o APK e instala automaticamente no emulador conectado.
+
+### Iniciar a app no emulador
+
+Após a instalação, abra a app diretamente no emulador ou via CLI:
+```sh
+adb shell am start -n dev.guilhermeluan.planner/dev.guilhermeluan.planner.MainActivity
+```
+
 ## Executar os testes
 
 ```sh

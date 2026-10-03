@@ -3,6 +3,7 @@ package dev.guilhermeluan.planner.tasks
 import androidx.room.withTransaction
 import dev.guilhermeluan.planner.day.Week
 import dev.guilhermeluan.planner.storage.DoseRecordEntity
+import dev.guilhermeluan.planner.storage.DoseSnoozeEntity
 import dev.guilhermeluan.planner.storage.MedicineEntity
 import dev.guilhermeluan.planner.storage.MedicineArchivedPeriodEntity
 import dev.guilhermeluan.planner.storage.MedicinePreviousVersionEntity
@@ -334,6 +335,9 @@ class RoomPlannerRepository(
                 (projected + registered.keys).map { time -> version.doseOn(day, time, registered[time]) }
             }
             .sortedBy(PlannedDose::time)
+    }.combine(medicineDao.observeDoseSnoozes(accountId, day.toString())) { doses, snoozes ->
+        val snoozedUntil = snoozes.associate { (it.medicineId to LocalTime.parse(it.time)) to Instant.parse(it.snoozedUntil) }
+        doses.map { it.copy(snoozedUntil = snoozedUntil[it.medicineId to it.time]) }
     }
 
     private fun assembleMedicines(
@@ -342,6 +346,13 @@ class RoomPlannerRepository(
     ): List<PlannerMedicine> {
         val timesByMedicine = times.groupBy(MedicineTimeEntity::medicineId)
         return medicines.map { it.toDomain(timesByMedicine[it.id].orEmpty().map { t -> LocalTime.parse(t.time) }.toSet()) }
+    }
+
+    /** Adia o Lembrete da Dose para [until]; a Dose continua pendente. */
+    suspend fun snoozeDose(accountId: String, medicineId: String, day: LocalDate, time: LocalTime, until: Instant) {
+        medicineDao.upsertDoseSnooze(
+            DoseSnoozeEntity(medicineId, day.toString(), time.toString(), accountId, until.toString()),
+        )
     }
 
     /** Uma Dose só é persistida quando sai de pendente; voltar a pendente apaga o registro. */

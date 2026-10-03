@@ -172,6 +172,12 @@ abstract class MedicineDao {
 
     @Query("SELECT * FROM dose_records WHERE accountId = :accountId AND `day` = :day")
     abstract fun observeDoseRecords(accountId: String, day: String): Flow<List<DoseRecordEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertDoseSnooze(snooze: DoseSnoozeEntity)
+
+    @Query("SELECT * FROM dose_snoozes WHERE accountId = :accountId AND `day` = :day")
+    abstract fun observeDoseSnoozes(accountId: String, day: String): Flow<List<DoseSnoozeEntity>>
 }
 
 /** Último Dia com Dose registrada de um Remédio. */

@@ -141,3 +141,34 @@ data class MedicineArchivedPeriodEntity(
     val archivedFrom: String,
     val archivedUntil: String?,
 )
+
+/**
+ * Adiamento do Lembrete de uma Dose ainda pendente: o Lembrete volta em [snoozedUntil]. Adiar não muda o
+ * estado da Dose, por isso fica fora de `dose_records`.
+ */
+@Entity(
+    tableName = "dose_snoozes",
+    primaryKeys = ["medicineId", "day", "time"],
+    indices = [Index("accountId", "day")],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = MedicineEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["medicineId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class DoseSnoozeEntity(
+    val medicineId: String,
+    val day: String,
+    val time: String,
+    val accountId: String,
+    val snoozedUntil: String,
+)

@@ -117,7 +117,7 @@ class ReminderAlarmScheduler(private val gateway: ReminderAlarmGateway) {
     }
 }
 
-private class AndroidReminderAlarmGateway(
+internal class AndroidReminderAlarmGateway(
     context: Context,
     private val pendingIntent: PendingIntent,
 ) : ReminderAlarmGateway {

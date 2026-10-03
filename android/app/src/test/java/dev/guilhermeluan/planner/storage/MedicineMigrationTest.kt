@@ -72,10 +72,14 @@ class MedicineMigrationTest {
         PlannerDatabase.MIGRATION_3_4.migrate(db)
         PlannerDatabase.MIGRATION_4_5.migrate(db)
         PlannerDatabase.MIGRATION_5_6.migrate(db)
+        PlannerDatabase.MIGRATION_6_7.migrate(db)
         val room = Room.inMemoryDatabaseBuilder(context, PlannerDatabase::class.java).build()
         val fresh = room.openHelper.writableDatabase
 
-        listOf("medicines", "medicine_times", "dose_records", "medicine_previous_versions", "medicine_archived_periods").forEach { table ->
+        listOf(
+            "medicines", "medicine_times", "dose_records", "medicine_previous_versions", "medicine_archived_periods",
+            "dose_snoozes",
+        ).forEach { table ->
             assertEquals(table, shape(fresh, table), shape(db, table))
         }
         room.close()
@@ -151,6 +155,36 @@ class MedicineMigrationTest {
                 assertTrue(c.moveToFirst())
                 assertEquals(0, c.getInt(0))
             }
+        }
+    }
+
+    @Test
+    fun migrationSixToSevenKeepsDoseRecordsAndStartsWithoutSnoozes() {
+        val db = versionThreeDatabase()
+        PlannerDatabase.MIGRATION_3_4.migrate(db)
+        PlannerDatabase.MIGRATION_4_5.migrate(db)
+        PlannerDatabase.MIGRATION_5_6.migrate(db)
+        db.execSQL("INSERT INTO accounts (id, username) VALUES ('a', 'ana')")
+        db.execSQL("INSERT INTO planners (id, accountId) VALUES ('p', 'a')")
+        db.execSQL(
+            "INSERT INTO medicines (id, accountId, plannerId, name, amount, unit, repeatKind, repeatWeekdays, " +
+                "startDate, endDate, status, updatedAt) VALUES ('m', 'a', 'p', 'Vitamina D', 1, 'CAPSULE', 'DAILY', " +
+                "'', '2026-10-01', NULL, 'ACTIVE', '2026-10-01T00:00:00Z')",
+        )
+        db.execSQL(
+            "INSERT INTO dose_records (medicineId, day, time, accountId, status, takenAt, updatedAt) " +
+                "VALUES ('m', '2026-10-01', '13:00', 'a', 'TAKEN', '2026-10-01T13:01:00Z', '2026-10-01T13:01:00Z')",
+        )
+
+        PlannerDatabase.MIGRATION_6_7.migrate(db)
+
+        db.query("SELECT status FROM dose_records").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("TAKEN", c.getString(0))
+        }
+        db.query("SELECT COUNT(*) FROM dose_snoozes").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
         }
     }
 }

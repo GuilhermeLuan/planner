@@ -190,4 +190,6 @@ data class PlannedDose(
     val time: LocalTime,
     val status: DoseStatus = DoseStatus.PENDING,
     val takenAt: Instant? = null,
+    /** Quando o Lembrete da Dose volta, se ela foi adiada. */
+    val snoozedUntil: Instant? = null,
 )
