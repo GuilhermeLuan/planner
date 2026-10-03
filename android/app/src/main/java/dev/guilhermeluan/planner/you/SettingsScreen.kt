@@ -38,7 +38,7 @@ import dev.guilhermeluan.planner.ui.components.PlannerScene
 import dev.guilhermeluan.planner.ui.components.PtBr
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
-import dev.guilhermeluan.planner.ui.theme.youTones
+import dev.guilhermeluan.planner.ui.theme.plannerTones
 import java.time.format.DateTimeFormatter
 
 private enum class SettingsSheet { Name, Timezone, Archived }
@@ -148,7 +148,7 @@ private fun SettingsGroup(title: String, rows: @Composable () -> Unit) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
                 .background(PlannerExtras.palette.surface)
-                .border(1.dp, youTones.cardLine, RoundedCornerShape(22.dp))
+                .border(1.dp, plannerTones.cardLine, RoundedCornerShape(22.dp))
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         ) { rows() }
     }
@@ -169,6 +169,6 @@ private fun SettingRow(title: String, subtitle: String, action: String, last: Bo
             }
             Text(action, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp), color = MaterialTheme.colorScheme.primary)
         }
-        if (!last) HorizontalDivider(color = youTones.rowDivider)
+        if (!last) HorizontalDivider(color = plannerTones.rowDivider)
     }
 }

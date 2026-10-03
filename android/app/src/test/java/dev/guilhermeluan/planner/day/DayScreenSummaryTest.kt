@@ -1,5 +1,8 @@
 package dev.guilhermeluan.planner.day
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasAnyAncestor
@@ -111,5 +114,30 @@ class DayScreenSummaryTest {
                 it.config.getOrNull(SemanticsActions.OnClick)?.label == "Abrir a aba Remédios"
             },
         ).assertExists()
+    }
+
+    @Test
+    fun tilesFollowTheSummaryWhenTheSelectedDayChanges() {
+        var current by mutableStateOf(summary)
+        composeRule.setContent {
+            PlannerTheme {
+                DayScreen(
+                    state = DayUiState(thursday, DayPlan(thursday, emptyList(), emptyList())),
+                    onSelectDay = {},
+                    onCreateTask = {},
+                    onToggleTask = { _, _ -> },
+                    summary = current,
+                )
+            }
+        }
+        card("summary-routines", "2 de 4")
+
+        composeRule.runOnIdle {
+            current = DaySummary(SummaryItem("0 de 1", 0f), SummaryItem("—", 0f), SummaryItem("3 de 3", 1f))
+        }
+
+        card("summary-routines", "0 de 1")
+        card("summary-water", "—")
+        card("summary-medicines", "3 de 3")
     }
 }

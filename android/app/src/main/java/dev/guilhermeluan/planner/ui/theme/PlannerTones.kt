@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 
 /** Tons dos blocos de constância e dos cartões; os claros são os do Figma, os escuros seguem os tokens noturnos. */
-internal data class YouTones(
+internal data class PlannerTones(
     val waterTile: Color,
     val waterInk: Color,
     val doseTile: Color,
@@ -21,14 +21,14 @@ internal data class YouTones(
     val rowDivider: Color,
 ) {
     companion object {
-        val Light = YouTones(
+        val Light = PlannerTones(
             waterTile = Color(0xFFE4E9FB), waterInk = Color(0xFF3D4C93),
             doseTile = Color(0xFFFDE6DA), doseInk = Color(0xFF8A4526), doseLabel = Color(0xFFB5603A),
             routineTile = Color(0xFFFFE3EE), routineInk = Color(0xFFA83262),
             tileLabel = Color(0xFF5E4552),
             cardLine = Color(0xFFF6DCE6), rowDivider = Color(0xFFF6E4EB),
         )
-        val Dark = YouTones(
+        val Dark = PlannerTones(
             waterTile = Color(0xFF2B2740), waterInk = Color(0xFFC9D0F5),
             doseTile = Color(0xFF3A2620), doseInk = Color(0xFFFFB48A), doseLabel = Color(0xFFFFB48A),
             routineTile = Color(0xFF35212A), routineInk = Color(0xFFFF8FBA),
@@ -38,6 +38,6 @@ internal data class YouTones(
     }
 }
 
-internal val youTones: YouTones
+internal val plannerTones: PlannerTones
     @Composable @ReadOnlyComposable get() =
-        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) YouTones.Dark else YouTones.Light
+        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) PlannerTones.Dark else PlannerTones.Light

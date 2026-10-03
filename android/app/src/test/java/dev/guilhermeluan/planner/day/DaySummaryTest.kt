@@ -96,4 +96,20 @@ class DaySummaryTest {
 
         assertEquals(0f, summary.water.progress, 0f)
     }
+
+    @Test
+    fun ignoresRoutinesOfAnotherDay() {
+        val summary = DaySummary.of(
+            selectedDay = day,
+            routines = listOf(
+                routine("a", RoutineOccurrenceStatus.DONE).copy(day = day.minusDays(1)),
+                routine("b", RoutineOccurrenceStatus.DONE),
+                routine("c", RoutineOccurrenceStatus.PENDING),
+            ),
+            water = null,
+            doses = emptyList(),
+        )
+
+        assertEquals("1 de 2", summary.routines.value)
+    }
 }

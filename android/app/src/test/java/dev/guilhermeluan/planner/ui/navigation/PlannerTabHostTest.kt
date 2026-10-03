@@ -121,4 +121,25 @@ class PlannerTabHostTest {
         composeRule.onNodeWithTag("tab-agua").assertIsSelected()
         composeRule.onNodeWithText("conteúdo da água").assertIsDisplayed()
     }
+
+    @Test
+    fun todayContentCanOpenTheMedicinesTab() {
+        composeRule.setContent {
+            PlannerTheme {
+                PlannerTabHost(
+                    today = { openTab ->
+                        Text("conteúdo do dia", Modifier.clickable { openTab(PlannerTab.Medicines) }.testTag("go-medicines"))
+                    },
+                    water = { Text("conteúdo da água") },
+                    you = { Text("conteúdo dos ajustes") },
+                    medicines = { Text("conteúdo dos remédios") },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("go-medicines").performClick()
+
+        composeRule.onNodeWithTag("tab-remedios").assertIsSelected()
+        composeRule.onNodeWithText("conteúdo dos remédios").assertIsDisplayed()
+    }
 }

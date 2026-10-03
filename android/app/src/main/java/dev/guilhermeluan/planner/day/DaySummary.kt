@@ -34,14 +34,12 @@ data class DaySummary(val routines: SummaryItem, val water: SummaryItem, val med
             water: WaterDay?,
             doses: List<PlannedDose>,
         ): DaySummary {
+            val dayRoutines = routines.filter { it.day == selectedDay }
             val dayDoses = doses.filter { it.day == selectedDay }
             return DaySummary(
-                routines = SummaryItem.count(routines.count { it.status == RoutineOccurrenceStatus.DONE }, routines.size),
+                routines = SummaryItem.count(dayRoutines.count { it.status == RoutineOccurrenceStatus.DONE }, dayRoutines.size),
                 water = water?.takeIf { it.day == selectedDay }?.let {
-                    SummaryItem(
-                        value = WaterText.consumedOfGoal(it.consumedMl, it.goalMl),
-                        progress = if (it.goalMl > 0) (it.consumedMl.toFloat() / it.goalMl).coerceIn(0f, 1f) else 0f,
-                    )
+                    SummaryItem(WaterText.consumedOfGoal(it.consumedMl, it.goalMl), it.progress)
                 } ?: SummaryItem.Unknown,
                 medicines = SummaryItem.count(dayDoses.count { it.status == DoseStatus.TAKEN }, dayDoses.size),
             )

@@ -47,7 +47,7 @@ import dev.guilhermeluan.planner.ui.components.PlannerScene
 import dev.guilhermeluan.planner.ui.components.PtBr
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
-import dev.guilhermeluan.planner.ui.theme.youTones
+import dev.guilhermeluan.planner.ui.theme.plannerTones
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
@@ -183,7 +183,7 @@ fun YouScreen(
 
 @Composable
 private fun ConsistencySection(state: YouUiState) {
-    val tones = youTones
+    val tones = plannerTones
     val consistency = state.consistency
     val month = state.today.month.getDisplayName(TextStyle.FULL, PtBr)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -219,7 +219,7 @@ private fun ConsistencyTile(value: String, label: String, tile: Color, ink: Colo
         Text(
             label,
             style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp, lineHeight = 15.sp),
-            color = youTones.tileLabel,
+            color = plannerTones.tileLabel,
         )
     }
 }
@@ -232,7 +232,7 @@ private fun SettingsRow(onOpen: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(palette.surface)
-            .border(1.dp, youTones.cardLine, RoundedCornerShape(22.dp))
+            .border(1.dp, plannerTones.cardLine, RoundedCornerShape(22.dp))
             .clickable(role = Role.Button, onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
