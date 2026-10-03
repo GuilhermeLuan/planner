@@ -71,10 +71,11 @@ class MedicineMigrationTest {
         val db = versionThreeDatabase()
         PlannerDatabase.MIGRATION_3_4.migrate(db)
         PlannerDatabase.MIGRATION_4_5.migrate(db)
+        PlannerDatabase.MIGRATION_5_6.migrate(db)
         val room = Room.inMemoryDatabaseBuilder(context, PlannerDatabase::class.java).build()
         val fresh = room.openHelper.writableDatabase
 
-        listOf("medicines", "medicine_times", "dose_records").forEach { table ->
+        listOf("medicines", "medicine_times", "dose_records", "medicine_previous_versions", "medicine_archived_periods").forEach { table ->
             assertEquals(table, shape(fresh, table), shape(db, table))
         }
         room.close()
@@ -123,6 +124,33 @@ class MedicineMigrationTest {
             assertTrue(c.moveToFirst())
             assertEquals("TAKEN", c.getString(0))
             assertEquals(0, c.getInt(1))
+        }
+    }
+
+    @Test
+    fun migrationFiveToSixKeepsMedicinesAndStartsWithoutPreviousVersions() {
+        val db = versionThreeDatabase()
+        PlannerDatabase.MIGRATION_3_4.migrate(db)
+        PlannerDatabase.MIGRATION_4_5.migrate(db)
+        db.execSQL("INSERT INTO accounts (id, username) VALUES ('a', 'ana')")
+        db.execSQL("INSERT INTO planners (id, accountId) VALUES ('p', 'a')")
+        db.execSQL(
+            "INSERT INTO medicines (id, accountId, plannerId, name, amount, unit, repeatKind, repeatWeekdays, " +
+                "startDate, endDate, status, updatedAt) VALUES ('m', 'a', 'p', 'Vitamina D', 1, 'CAPSULE', 'DAILY', " +
+                "'', '2026-10-01', NULL, 'ACTIVE', '2026-10-01T00:00:00Z')",
+        )
+
+        PlannerDatabase.MIGRATION_5_6.migrate(db)
+
+        db.query("SELECT name FROM medicines").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("Vitamina D", c.getString(0))
+        }
+        listOf("medicine_previous_versions", "medicine_archived_periods").forEach { table ->
+            db.query("SELECT COUNT(*) FROM $table").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals(0, c.getInt(0))
+            }
         }
     }
 }

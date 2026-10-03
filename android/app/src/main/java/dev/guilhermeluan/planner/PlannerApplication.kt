@@ -16,7 +16,7 @@ class PlannerApplication : Application() {
     val database: PlannerDatabase by lazy {
         Room.databaseBuilder(this, PlannerDatabase::class.java, "planner.db")
             .addMigrations(PlannerDatabase.MIGRATION_1_2)
-            .addMigrations(PlannerDatabase.MIGRATION_2_3, PlannerDatabase.MIGRATION_3_4, PlannerDatabase.MIGRATION_4_5)
+            .addMigrations(PlannerDatabase.MIGRATION_2_3, PlannerDatabase.MIGRATION_3_4, PlannerDatabase.MIGRATION_4_5, PlannerDatabase.MIGRATION_5_6)
             .build()
     }
     val localPlannerRepository by lazy { LocalPlannerRepository(database) }

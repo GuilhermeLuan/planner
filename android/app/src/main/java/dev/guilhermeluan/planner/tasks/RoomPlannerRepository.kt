@@ -1,8 +1,11 @@
 package dev.guilhermeluan.planner.tasks
 
+import androidx.room.withTransaction
 import dev.guilhermeluan.planner.day.Week
 import dev.guilhermeluan.planner.storage.DoseRecordEntity
 import dev.guilhermeluan.planner.storage.MedicineEntity
+import dev.guilhermeluan.planner.storage.MedicineArchivedPeriodEntity
+import dev.guilhermeluan.planner.storage.MedicinePreviousVersionEntity
 import dev.guilhermeluan.planner.storage.MedicineTimeEntity
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.storage.RoutineEntity
@@ -18,7 +21,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 class RoomPlannerRepository(
-    database: PlannerDatabase,
+    private val database: PlannerDatabase,
     private val idGenerator: IdGenerator,
     private val clock: Clock,
 ) {
@@ -195,48 +198,140 @@ class RoomPlannerRepository(
         plannerId: String,
         draft: MedicineDraft,
     ): PlannerMedicine {
-        val name = draft.name.trim()
-        require(name.isNotEmpty()) { "O Remédio precisa de um nome" }
-        require(draft.amount > 0) { "A dose precisa de uma quantidade" }
-        require(draft.times.isNotEmpty()) { "Escolha ao menos um horário" }
+        val valid = draft.validated()
         val medicine = PlannerMedicine(
             id = idGenerator.nextId(),
             accountId = accountId,
             plannerId = plannerId,
-            name = name,
-            amount = draft.amount,
-            unit = draft.unit,
-            times = draft.times,
-            repeat = draft.repeat,
-            startDate = (draft.repeat as? MedicineRepeat.Period)?.start ?: draft.startDate,
+            name = valid.name,
+            amount = valid.amount,
+            unit = valid.unit,
+            times = valid.times,
+            repeat = valid.repeat,
+            startDate = (valid.repeat as? MedicineRepeat.Period)?.start ?: valid.startDate,
             status = MedicineStatus.ACTIVE,
-            stock = draft.stock?.let { MedicineStock(it, capacity = it, threshold = draft.stockThreshold ?: 0) },
+            stock = valid.toStock(),
         )
+        persistMedicine(medicine)
+        return medicine
+    }
+
+    /**
+     * Edita o Remédio a partir de [effectiveFrom], ou mais tarde se já houver Dose registrada (veja
+     * [editEffectiveFrom]). O que valia até então fica guardado como versão anterior, então Dias anteriores
+     * continuam com o nome, a dose, os horários e a repetição de antes.
+     */
+    suspend fun editMedicine(
+        accountId: String,
+        medicineId: String,
+        draft: MedicineDraft,
+        effectiveFrom: LocalDate,
+    ): PlannerMedicine = database.withTransaction {
+        // Na mesma transação: uma Dose registrada entre ler o último Dia e gravar mudaria de versão.
+        val current = currentMedicine(accountId, medicineId)
+        val valid = draft.validated()
+        val from = editEffectiveFrom(effectiveFrom, medicineDao.lastRegisteredDay(medicineId)?.let(LocalDate::parse))
+        val edited = current.copy(
+            name = valid.name,
+            amount = valid.amount,
+            unit = valid.unit,
+            times = valid.times,
+            repeat = valid.repeat,
+            startDate = when {
+                valid.repeat is MedicineRepeat.Period -> valid.repeat.start
+                current.repeat is MedicineRepeat.Period -> from
+                else -> current.startDate
+            },
+            stock = valid.toStock(current.stock),
+        )
+        medicineDao.writeEditedMedicine(
+            current.toPreviousVersion(from),
+            edited.toEntity(clock.instant().toString()),
+            edited.times.map { MedicineTimeEntity(edited.id, it.toString()) },
+        )
+        edited
+    }
+
+    /** Arquiva o Remédio a partir de [day]: dali em diante não há Doses novas, e o que veio antes fica. */
+    suspend fun archiveMedicine(accountId: String, medicineId: String, day: LocalDate): PlannerMedicine =
+        setMedicineStatus(accountId, medicineId, MedicineStatus.ARCHIVED, day)
+
+    /** Restaura o Remédio em [day]: as Doses voltam dali em diante, sem trazer de volta o período arquivado. */
+    suspend fun restoreMedicine(accountId: String, medicineId: String, day: LocalDate): PlannerMedicine =
+        setMedicineStatus(accountId, medicineId, MedicineStatus.ACTIVE, day)
+
+    private suspend fun setMedicineStatus(
+        accountId: String,
+        medicineId: String,
+        status: MedicineStatus,
+        day: LocalDate,
+    ): PlannerMedicine = database.withTransaction {
+        val medicine = currentMedicine(accountId, medicineId)
+        medicineDao.writeStatusChange(medicineId, status, clock.instant().toString(), day.toString())
+        medicine.copy(status = status)
+    }
+
+    private suspend fun currentMedicine(accountId: String, medicineId: String): PlannerMedicine {
+        val entity = medicineDao.medicine(accountId, medicineId) ?: error("Remédio não encontrado")
+        return entity.toDomain(medicineDao.times(medicineId).map { LocalTime.parse(it.time) }.toSet())
+    }
+
+    private suspend fun persistMedicine(medicine: PlannerMedicine) {
         medicineDao.writeLocalMedicine(
             medicine.toEntity(clock.instant().toString()),
             medicine.times.map { MedicineTimeEntity(medicine.id, it.toString()) },
         )
-        return medicine
     }
 
-    fun observeMedicines(accountId: String): Flow<List<PlannerMedicine>> = combine(
+    fun observeMedicines(accountId: String): Flow<List<PlannerMedicine>> =
+        observeMedicinesWith(accountId, MedicineStatus.ACTIVE)
+            .map { medicines -> medicines.sortedBy { it.times.minOrNull() } }
+
+    fun observeArchivedMedicines(accountId: String): Flow<List<PlannerMedicine>> =
+        observeMedicinesWith(accountId, MedicineStatus.ARCHIVED)
+            .map { medicines -> medicines.sortedBy { it.name.lowercase() } }
+
+    private fun observeMedicinesWith(accountId: String, status: MedicineStatus): Flow<List<PlannerMedicine>> = combine(
         medicineDao.observeMedicines(accountId),
         medicineDao.observeTimes(accountId),
-        ::assembleMedicines,
-    ).map { medicines -> medicines.sortedBy { it.times.minOrNull() } }
+    ) { medicines, times -> assembleMedicines(medicines, times).filter { it.status == status } }
 
+    /** Último Dia com Dose registrada de cada Remédio que tem alguma; define a partir de quando uma edição vale. */
+    fun observeLastRegisteredDays(accountId: String): Flow<Map<String, LocalDate>> =
+        medicineDao.observeLastRegisteredDays(accountId).map { rows ->
+            rows.associate { it.medicineId to LocalDate.parse(it.day) }
+        }
+
+    /**
+     * Doses de um Dia: as projetadas pela versão do Remédio que valia naquele Dia (menos nos Períodos
+     * arquivados) e as já registradas. Com o Remédio arquivado, as registradas do Dia do arquivamento e de
+     * antes seguem visíveis; as de Dias depois dele ficam escondidas até restaurar.
+     */
     fun observeDoses(accountId: String, day: LocalDate): Flow<List<PlannedDose>> = combine(
         medicineDao.observeMedicines(accountId),
         medicineDao.observeTimes(accountId),
         medicineDao.observeDoseRecords(accountId, day.toString()),
-    ) { medicineEntities, times, records ->
-        val recordsByDose = records.associateBy { it.medicineId to LocalTime.parse(it.time) }
+        medicineDao.observePreviousVersions(accountId),
+        medicineDao.observeArchivedPeriods(accountId),
+    ) { medicineEntities, times, records, previousVersions, archivedPeriods ->
+        val recordsByMedicine = records.groupBy { it.medicineId }
+        val previousVersionsByMedicine = previousVersions.groupBy { it.medicineId }
+        val archivedPeriodsByMedicine = archivedPeriods.groupBy { it.medicineId }
         assembleMedicines(medicineEntities, times)
-            .filter { MedicineRecurrence.occursOn(it, day) }
             .flatMap { medicine ->
-                medicine.times.map { time ->
-                    medicine.doseOn(day, time, recordsByDose[medicine.id to time])
+                val periods = archivedPeriodsByMedicine[medicine.id].orEmpty().map { it.toDomain() }
+                val hidesRegistered = periods.any { it.until == null && day.isAfter(it.from) }
+                val registered = recordsByMedicine[medicine.id].orEmpty()
+                    .takeUnless { hidesRegistered }.orEmpty()
+                    .associateBy { LocalTime.parse(it.time) }
+                val version = medicine.versionOn(day, previousVersionsByMedicine[medicine.id].orEmpty().map { it.toDomain() })
+                val archived = periods.any { it.covers(day) }
+                val projected = if (!archived && MedicineRecurrence.occursOn(version.copy(status = MedicineStatus.ACTIVE), day)) {
+                    version.times
+                } else {
+                    emptySet()
                 }
+                (projected + registered.keys).map { time -> version.doseOn(day, time, registered[time]) }
             }
             .sortedBy(PlannedDose::time)
     }
@@ -246,9 +341,7 @@ class RoomPlannerRepository(
         times: List<MedicineTimeEntity>,
     ): List<PlannerMedicine> {
         val timesByMedicine = times.groupBy(MedicineTimeEntity::medicineId)
-        return medicines
-            .map { it.toDomain(timesByMedicine[it.id].orEmpty().map { t -> LocalTime.parse(t.time) }.toSet()) }
-            .filter { it.status == MedicineStatus.ACTIVE }
+        return medicines.map { it.toDomain(timesByMedicine[it.id].orEmpty().map { t -> LocalTime.parse(t.time) }.toSet()) }
     }
 
     /** Uma Dose só é persistida quando sai de pendente; voltar a pendente apaga o registro. */
@@ -260,14 +353,20 @@ class RoomPlannerRepository(
         status: DoseStatus,
     ) {
         val now = clock.instant().toString()
-        medicineDao.writeDoseStatus(
-            accountId = accountId,
-            medicineId = medicineId,
-            day = day.toString(),
-            time = time.toString(),
-            status = status.name,
-            updatedAt = now,
-        ) ?: error("Remédio não encontrado")
+        database.withTransaction {
+            // A dose descontada é a da versão que vale no Dia, a mesma que a Dose mostra.
+            val version = currentMedicine(accountId, medicineId)
+                .versionOn(day, medicineDao.previousVersions(medicineId).map { it.toDomain() })
+            medicineDao.writeDoseStatus(
+                accountId = accountId,
+                medicineId = medicineId,
+                day = day.toString(),
+                time = time.toString(),
+                status = status.name,
+                updatedAt = now,
+                amount = version.amount,
+            )
+        }
     }
 
     private suspend fun setTaskArchived(
@@ -399,15 +498,10 @@ private fun PlannerMedicine.toEntity(updatedAt: String) = MedicineEntity(
     name = name,
     amount = amount,
     unit = unit.name,
-    repeatKind = when (repeat) {
-        MedicineRepeat.Daily -> "DAILY"
-        is MedicineRepeat.Weekdays -> "WEEKDAYS"
-        is MedicineRepeat.Period -> "PERIOD"
-    },
-    repeatWeekdays = (repeat as? MedicineRepeat.Weekdays)?.days
-        ?.sortedBy(DayOfWeek::getValue)?.joinToString(",") { it.value.toString() }.orEmpty(),
+    repeatKind = repeat.columns().kind,
+    repeatWeekdays = repeat.columns().weekdays,
     startDate = startDate.toString(),
-    endDate = (repeat as? MedicineRepeat.Period)?.end?.toString(),
+    endDate = repeat.columns().endDate,
     status = status.name,
     updatedAt = updatedAt,
     stockAmount = stock?.amount,
@@ -423,15 +517,58 @@ private fun MedicineEntity.toDomain(times: Set<LocalTime>) = PlannerMedicine(
     amount = amount,
     unit = DoseUnit.valueOf(unit),
     times = times,
-    repeat = when (repeatKind) {
-        "WEEKDAYS" -> MedicineRepeat.Weekdays(
-            repeatWeekdays.split(',').filter(String::isNotBlank).map { DayOfWeek.of(it.toInt()) }.toSet(),
-        )
-        "PERIOD" -> MedicineRepeat.Period(LocalDate.parse(startDate), LocalDate.parse(endDate))
-        "DAILY" -> MedicineRepeat.Daily
-        else -> error("Repetição de Remédio desconhecida: $repeatKind")
-    },
+    repeat = RepeatColumns(repeatKind, repeatWeekdays, endDate).decode(startDate),
     startDate = LocalDate.parse(startDate),
     status = MedicineStatus.valueOf(status),
     stock = stockAmount?.let { MedicineStock(it, stockCapacity ?: it, stockThreshold ?: 0) },
+)
+
+private fun PlannerMedicine.toPreviousVersion(until: LocalDate) = MedicinePreviousVersionEntity(
+    medicineId = id,
+    until = until.toString(),
+    name = name,
+    amount = amount,
+    unit = unit.name,
+    times = times.sorted().joinToString(",") { it.toString() },
+    repeatKind = repeat.columns().kind,
+    repeatWeekdays = repeat.columns().weekdays,
+    startDate = startDate.toString(),
+    endDate = repeat.columns().endDate,
+)
+
+private fun MedicinePreviousVersionEntity.toDomain() = MedicinePreviousVersion(
+    until = LocalDate.parse(until),
+    name = name,
+    amount = amount,
+    unit = DoseUnit.valueOf(unit),
+    times = times.split(',').filter(String::isNotBlank).map(LocalTime::parse).toSet(),
+    repeat = RepeatColumns(repeatKind, repeatWeekdays, endDate).decode(startDate),
+    startDate = LocalDate.parse(startDate),
+)
+
+/** Como a repetição é gravada nas colunas de Remédio e de versão anterior. */
+private data class RepeatColumns(val kind: String, val weekdays: String, val endDate: String?) {
+    fun decode(startDate: String): MedicineRepeat = when (kind) {
+        "WEEKDAYS" -> MedicineRepeat.Weekdays(
+            weekdays.split(',').filter(String::isNotBlank).map { DayOfWeek.of(it.toInt()) }.toSet(),
+        )
+        "PERIOD" -> MedicineRepeat.Period(LocalDate.parse(startDate), LocalDate.parse(endDate))
+        "DAILY" -> MedicineRepeat.Daily
+        else -> error("Repetição de Remédio desconhecida: $kind")
+    }
+}
+
+private fun MedicineRepeat.columns() = when (this) {
+    MedicineRepeat.Daily -> RepeatColumns("DAILY", "", null)
+    is MedicineRepeat.Weekdays -> RepeatColumns(
+        "WEEKDAYS",
+        days.sortedBy(DayOfWeek::getValue).joinToString(",") { it.value.toString() },
+        null,
+    )
+    is MedicineRepeat.Period -> RepeatColumns("PERIOD", "", end.toString())
+}
+
+private fun MedicineArchivedPeriodEntity.toDomain() = MedicineArchivedPeriod(
+    from = LocalDate.parse(archivedFrom),
+    until = archivedUntil?.let(LocalDate::parse),
 )

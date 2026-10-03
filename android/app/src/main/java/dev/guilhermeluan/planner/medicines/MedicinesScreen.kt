@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -70,6 +71,8 @@ data class MedicinesUiState(
     val selectedDay: LocalDate,
     val doses: List<PlannedDose> = emptyList(),
     val medicines: List<PlannerMedicine> = emptyList(),
+    val archivedMedicines: List<PlannerMedicine> = emptyList(),
+    val lastRegisteredDays: Map<String, LocalDate> = emptyMap(),
 )
 
 private val PeriodEndFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", PtBr)
@@ -87,9 +90,15 @@ fun MedicinesScreen(
     zone: ZoneId,
     onSetDoseStatus: (PlannedDose, DoseStatus) -> Unit,
     onCreateMedicine: (MedicineDraft) -> Unit,
+    onEditMedicine: (medicineId: String, MedicineDraft) -> Unit,
+    onArchiveMedicine: (medicineId: String) -> Unit,
+    onRestoreMedicine: (medicineId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var viewingArchived by rememberSaveable { mutableStateOf(false) }
+    val editing = state.medicines.firstOrNull { it.id == editingId }
     val nextDose = state.doses.firstOrNull { it.status == DoseStatus.PENDING }
 
     Surface(modifier.fillMaxSize().testTag("medicines-screen"), color = MaterialTheme.colorScheme.background) {
@@ -100,8 +109,14 @@ fun MedicinesScreen(
                 verticalArrangement = Arrangement.spacedBy(26.dp),
             ) {
                 item { MedicinesHeader(state, today) }
-                if (state.medicines.isEmpty()) {
+                // Doses registradas de um Remédio arquivado seguem no Dia, então elas também afastam o estado vazio.
+                if (state.medicines.isEmpty() && state.doses.isEmpty()) {
                     item { EmptyMedicines() }
+                    if (state.archivedMedicines.isNotEmpty()) {
+                        item {
+                            SeeArchivedLink(Modifier.padding(horizontal = 20.dp)) { viewingArchived = true }
+                        }
+                    }
                 } else {
                     if (state.doses.isNotEmpty()) {
                         item {
@@ -127,10 +142,19 @@ fun MedicinesScreen(
                             }
                         }
                     }
-                    item {
-                        Section("Seus remédios") {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                state.medicines.forEach { MedicineCard(it) }
+                    if (state.medicines.isEmpty()) {
+                        item {
+                            SeeArchivedLink(Modifier.padding(horizontal = 20.dp)) { viewingArchived = true }
+                        }
+                    } else {
+                        item {
+                            Section(
+                                "Seus remédios",
+                                action = { SeeArchivedLink { viewingArchived = true } },
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    state.medicines.forEach { MedicineCard(it) { editingId = it.id } }
+                                }
                             }
                         }
                     }
@@ -150,6 +174,32 @@ fun MedicinesScreen(
                 text = { Text("Novo remédio", style = MaterialTheme.typography.labelLarge) },
             )
         }
+    }
+
+    editing?.let { medicine ->
+        EditMedicineSheet(
+            medicine = medicine,
+            initialDay = state.selectedDay,
+            today = today,
+            lastRegisteredDay = state.lastRegisteredDays[medicine.id],
+            onDismiss = { editingId = null },
+            onSave = {
+                editingId = null
+                onEditMedicine(medicine.id, it)
+            },
+            onArchive = {
+                editingId = null
+                onArchiveMedicine(medicine.id)
+            },
+        )
+    }
+
+    if (viewingArchived) {
+        ArchivedMedicinesSheet(
+            medicines = state.archivedMedicines,
+            onDismiss = { viewingArchived = false },
+            onRestore = onRestoreMedicine,
+        )
     }
 
     if (creating) {
@@ -256,9 +306,12 @@ private fun AllDoneCard() {
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(title: String, action: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.headlineSmall)
+            action?.invoke()
+        }
         content()
     }
 }
@@ -339,7 +392,7 @@ private fun DoseRow(dose: PlannedDose, zone: ZoneId, onSetDoseStatus: (PlannedDo
 }
 
 @Composable
-private fun MedicineCard(medicine: PlannerMedicine) {
+private fun MedicineCard(medicine: PlannerMedicine, onClick: () -> Unit) {
     val palette = PlannerExtras.palette
     val low = medicine.stock?.low == true
     val shape = RoundedCornerShape(20.dp)
@@ -350,6 +403,7 @@ private fun MedicineCard(medicine: PlannerMedicine) {
             .clip(shape)
             .background(style.container)
             .border(1.dp, style.border, shape)
+            .clickable(role = Role.Button, onClickLabel = "Editar ${medicine.name}", onClick = onClick)
             .padding(16.dp)
             .testTag("medicine-card-${medicine.id}")
             .semantics(mergeDescendants = true) {
@@ -417,6 +471,16 @@ internal fun scheduleSummary(medicine: PlannerMedicine): String {
         is MedicineRepeat.Period -> " · até ${r.end.format(PeriodEndFormatter)}"
     }
     return "${medicine.times.size}x ao dia · $times$repeat"
+}
+
+@Composable
+private fun SeeArchivedLink(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Text(
+        "Ver arquivados",
+        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.clickable(role = Role.Button, onClick = onClick).padding(vertical = 4.dp),
+    )
 }
 
 @Composable

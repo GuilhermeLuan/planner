@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import dev.guilhermeluan.planner.tasks.DoseStatus
@@ -78,11 +79,19 @@ class MedicinesScreenTest {
         selectedDay: LocalDate = today,
         clockToday: LocalDate = today,
         onCreateMedicine: (MedicineDraft) -> Unit = {},
+        archived: List<PlannerMedicine> = emptyList(),
+        onEditMedicine: (String, MedicineDraft) -> Unit = { _, _ -> },
+        onArchiveMedicine: (String) -> Unit = {},
+        onRestoreMedicine: (String) -> Unit = {},
+        lastRegisteredDays: Map<String, LocalDate> = emptyMap(),
         onSetDoseStatus: (PlannedDose, DoseStatus) -> Unit = { _, _ -> },
     ) = composeRule.setContent {
         PlannerTheme {
             MedicinesScreen(
-                state = MedicinesUiState(selectedDay, doses, medicines),
+                state = MedicinesUiState(selectedDay, doses, medicines, archived, lastRegisteredDays),
+                onEditMedicine = onEditMedicine,
+                onArchiveMedicine = onArchiveMedicine,
+                onRestoreMedicine = onRestoreMedicine,
                 today = clockToday,
                 zone = zone,
                 onSetDoseStatus = onSetDoseStatus,
@@ -258,5 +267,101 @@ class MedicinesScreenTest {
         assertEquals(listOf(palette.alertSurface, palette.alertLine, palette.alertAmber, palette.alertAmber, palette.alertTrack, palette.alertAmber),
             listOf(low.container, low.border, low.icon, low.bar, low.track, low.label))
         assertEquals(listOf(palette.surface, palette.line, primary, palette.blush), listOf(ok.container, ok.border, ok.bar, ok.track))
+    }
+
+    @Test
+    fun tappingAMedicineCardOpensItsFormAndHandsBackTheEditedDraft() {
+        var edited: Pair<String, MedicineDraft>? = null
+        show(medicines = listOf(withStock(12, 5)), onEditMedicine = { id, draft -> edited = id to draft })
+
+        composeRule.onNodeWithTag("medicine-card-m2").performScrollTo().performClick()
+        composeRule.onNodeWithText("Editar remédio").assertIsDisplayed()
+        composeRule.onNodeWithTag("medicine-name").performTextReplacement("Vitamina D3")
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+
+        assertEquals("m2", edited?.first)
+        assertEquals("Vitamina D3", edited?.second?.name)
+        assertEquals(12, edited?.second?.stock)
+        composeRule.onNodeWithTag("medicine-name").assertDoesNotExist()
+    }
+
+    @Test
+    fun archivingFromTheEditFormClosesItAndReportsTheMedicine() {
+        var archivedId: String? = null
+        show(onArchiveMedicine = { archivedId = it })
+
+        composeRule.onNodeWithTag("medicine-card-m2").performScrollTo().performClick()
+        composeRule.onNodeWithText("Arquivar remédio").performScrollTo().performClick()
+
+        assertEquals("m2", archivedId)
+        composeRule.onNodeWithTag("medicine-name").assertDoesNotExist()
+    }
+
+    @Test
+    fun seeArchivedListsArchivedMedicinesAndRestoresOne() {
+        var restoredId: String? = null
+        val old = medicine("m7", "Ômega 3", LocalTime.of(9, 0))
+        show(archived = listOf(old), onRestoreMedicine = { restoredId = it })
+
+        composeRule.onNodeWithText("Ômega 3").assertDoesNotExist()
+        composeRule.onNodeWithText("Ver arquivados").performScrollTo().performClick()
+        composeRule.onNodeWithText("Remédios arquivados").assertIsDisplayed()
+        composeRule.onNodeWithText("Ômega 3").assertIsDisplayed()
+        composeRule.onNodeWithText("Restaurar").performClick()
+
+        assertEquals("m7", restoredId)
+    }
+
+    @Test
+    fun seeArchivedWithNothingArchivedSaysSo() {
+        show()
+
+        composeRule.onNodeWithText("Ver arquivados").performScrollTo().performClick()
+
+        composeRule.onNodeWithText("Nenhum remédio arquivado").assertIsDisplayed()
+    }
+
+    @Test
+    fun archivedMedicinesStayReachableWhenNoActiveMedicineIsLeft() {
+        show(doses = emptyList(), medicines = emptyList(), archived = listOf(medicine("m7", "Ômega 3", LocalTime.of(9, 0))))
+
+        composeRule.onNodeWithText("Nenhum remédio ainda").assertIsDisplayed()
+        composeRule.onNodeWithText("Ver arquivados").assertIsDisplayed()
+    }
+
+    @Test
+    fun registeredDosesOfAnArchivedMedicineStayVisibleAndCanBeUndone() {
+        val changes = mutableListOf<Pair<PlannedDose, DoseStatus>>()
+        show(
+            doses = listOf(contraceptive),
+            medicines = emptyList(),
+            archived = listOf(medicine("m1", "Anticoncepcional", LocalTime.of(8, 0))),
+        ) { dose, status -> changes += dose to status }
+
+        composeRule.onNodeWithText("Nenhum remédio ainda").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Desmarcar Anticoncepcional das 08:00").performScrollTo().performClick()
+        composeRule.onNodeWithText("Ver arquivados").performScrollTo().assertIsDisplayed()
+
+        assertEquals(listOf(contraceptive to DoseStatus.PENDING), changes)
+    }
+
+    @Test
+    fun editingAMedicineWithADoseRegisteredTodayWarnsThatChangesStartTomorrow() {
+        show(lastRegisteredDays = mapOf("m2" to today))
+
+        composeRule.onNodeWithTag("medicine-card-m2").performScrollTo().performClick()
+
+        composeRule.onNodeWithText("Já há dose registrada hoje, então as mudanças valem a partir de amanhã.")
+            .performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun editingAMedicineWithNothingRegisteredTodayHasNoWarning() {
+        show(lastRegisteredDays = mapOf("m2" to today.minusDays(1)))
+
+        composeRule.onNodeWithTag("medicine-card-m2").performScrollTo().performClick()
+
+        composeRule.onNodeWithText("Editar remédio").assertIsDisplayed()
+        composeRule.onNodeWithText("as mudanças valem a partir de amanhã", substring = true).assertDoesNotExist()
     }
 }

@@ -25,13 +25,15 @@ import java.util.UUID
 
 class MedicinesViewModel(
     private val repository: RoomPlannerRepository,
+    private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
-    private val selectedDay = MutableStateFlow(LocalDate.now())
-    private val _uiState = MutableStateFlow(MedicinesUiState(LocalDate.now()))
+    private val selectedDay = MutableStateFlow(LocalDate.now(clock))
+    private val _uiState = MutableStateFlow(MedicinesUiState(LocalDate.now(clock)))
     val uiState: StateFlow<MedicinesUiState> = _uiState.asStateFlow()
 
     private var accountId: String? = null
     private var plannerId: String? = null
+    private var zone: ZoneId = ZoneId.systemDefault()
     private var observeJob: Job? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,7 +41,8 @@ class MedicinesViewModel(
         if (accountId == localPlanner.account.id && plannerId == localPlanner.planner.id && observeJob?.isActive == true) return
         accountId = localPlanner.account.id
         plannerId = localPlanner.planner.id
-        selectedDay.value = LocalDate.now(ZoneId.of(localPlanner.account.timezone))
+        zone = ZoneId.of(localPlanner.account.timezone)
+        selectedDay.value = today()
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             selectedDay
@@ -47,11 +50,22 @@ class MedicinesViewModel(
                     combine(
                         repository.observeDoses(localPlanner.account.id, day),
                         repository.observeMedicines(localPlanner.account.id),
-                    ) { doses, medicines -> MedicinesUiState(day, doses, medicines) }
+                        repository.observeArchivedMedicines(localPlanner.account.id),
+                        repository.observeLastRegisteredDays(localPlanner.account.id),
+                    ) { doses, medicines, archived, lastRegisteredDays ->
+                        MedicinesUiState(day, doses, medicines, archived, lastRegisteredDays)
+                    }
                 }
                 .collect { _uiState.value = it }
         }
     }
+
+    /** Segue o Fuso da Conta (ADR 0022) para editar, arquivar e restaurar contarem a partir do "hoje" certo. */
+    fun updateTimezone(timezone: String) {
+        zone = ZoneId.of(timezone)
+    }
+
+    private fun today(): LocalDate = LocalDate.now(clock.withZone(zone))
 
     fun selectDay(day: LocalDate) {
         selectedDay.value = day
@@ -66,6 +80,21 @@ class MedicinesViewModel(
         val account = accountId ?: return
         val planner = plannerId ?: return
         viewModelScope.launch { repository.createMedicine(account, planner, draft) }
+    }
+
+    fun editMedicine(medicineId: String, draft: MedicineDraft) {
+        val account = accountId ?: return
+        viewModelScope.launch { repository.editMedicine(account, medicineId, draft, today()) }
+    }
+
+    fun archiveMedicine(medicineId: String) {
+        val account = accountId ?: return
+        viewModelScope.launch { repository.archiveMedicine(account, medicineId, today()) }
+    }
+
+    fun restoreMedicine(medicineId: String) {
+        val account = accountId ?: return
+        viewModelScope.launch { repository.restoreMedicine(account, medicineId, today()) }
     }
 
     class Factory(private val application: PlannerApplication) : ViewModelProvider.Factory {

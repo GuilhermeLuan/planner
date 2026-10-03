@@ -14,8 +14,10 @@ import androidx.room.RoomDatabase
         MedicineEntity::class,
         MedicineTimeEntity::class,
         DoseRecordEntity::class,
+        MedicinePreviousVersionEntity::class,
+        MedicineArchivedPeriodEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
@@ -125,6 +127,37 @@ abstract class PlannerDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE medicines ADD COLUMN stockCapacity INTEGER")
                 database.execSQL("ALTER TABLE medicines ADD COLUMN stockThreshold INTEGER")
                 database.execSQL("ALTER TABLE dose_records ADD COLUMN stockDeducted INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS medicine_previous_versions (
+                        medicineId TEXT NOT NULL,
+                        until TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        amount INTEGER NOT NULL,
+                        unit TEXT NOT NULL,
+                        times TEXT NOT NULL,
+                        repeatKind TEXT NOT NULL,
+                        repeatWeekdays TEXT NOT NULL,
+                        startDate TEXT NOT NULL,
+                        endDate TEXT,
+                        PRIMARY KEY(medicineId, until),
+                        FOREIGN KEY(medicineId) REFERENCES medicines(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_medicine_previous_versions_medicineId ON medicine_previous_versions(medicineId)")
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS medicine_archived_periods (
+                        medicineId TEXT NOT NULL,
+                        archivedFrom TEXT NOT NULL,
+                        archivedUntil TEXT,
+                        PRIMARY KEY(medicineId, archivedFrom),
+                        FOREIGN KEY(medicineId) REFERENCES medicines(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_medicine_archived_periods_medicineId ON medicine_archived_periods(medicineId)")
             }
         }
     }

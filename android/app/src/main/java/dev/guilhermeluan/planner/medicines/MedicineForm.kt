@@ -23,6 +23,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,8 @@ import dev.guilhermeluan.planner.day.TimePickerDialog
 import dev.guilhermeluan.planner.tasks.DoseUnit
 import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.MedicineRepeat
+import dev.guilhermeluan.planner.tasks.PlannerMedicine
+import dev.guilhermeluan.planner.tasks.editEffectiveFrom
 import dev.guilhermeluan.planner.ui.components.FormField
 import dev.guilhermeluan.planner.ui.components.PlannerChip
 import dev.guilhermeluan.planner.ui.components.PlannerFormSheet
@@ -58,25 +61,52 @@ import java.time.format.TextStyle
 private val FirstDoseTime = LocalTime.of(8, 0)
 private val ExtraDoseTimeSuggestion = LocalTime.of(9, 0)
 
-/** Formulário "Novo remédio" (tela 05 do Figma), sem alarme de dose. */
+/**
+ * Formulário "Novo remédio" (tela 05 do Figma), sem alarme de dose. Com [medicine] vira "Editar remédio",
+ * começando dos valores atuais; [onArchive] acrescenta a ação "Arquivar remédio" e [editNotice] avisa
+ * quando a edição só vale mais adiante.
+ */
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 fun MedicineForm(
     initialDay: LocalDate,
     onSave: (MedicineDraft) -> Unit,
     modifier: Modifier = Modifier,
+    medicine: PlannerMedicine? = null,
+    onArchive: (() -> Unit)? = null,
+    editNotice: String? = null,
 ) {
-    var name by rememberSaveable { mutableStateOf("") }
-    var amount by rememberSaveable { mutableStateOf(1) }
-    var unit by rememberSaveable { mutableStateOf(DoseUnit.TABLET) }
-    var times by rememberSaveable { mutableStateOf(listOf(FirstDoseTime.toString())) }
-    var stock by rememberSaveable { mutableStateOf("") }
-    var stockThreshold by rememberSaveable { mutableStateOf("") }
+    val currentRepeat = medicine?.repeat
+    var name by rememberSaveable { mutableStateOf(medicine?.name.orEmpty()) }
+    var amount by rememberSaveable { mutableStateOf(medicine?.amount ?: 1) }
+    var unit by rememberSaveable { mutableStateOf(medicine?.unit ?: DoseUnit.TABLET) }
+    var times by rememberSaveable {
+        mutableStateOf(medicine?.times?.sorted()?.map(LocalTime::toString) ?: listOf(FirstDoseTime.toString()))
+    }
+    var stock by rememberSaveable { mutableStateOf(medicine?.stock?.amount?.toString().orEmpty()) }
+    var stockThreshold by rememberSaveable { mutableStateOf(medicine?.stock?.threshold?.toString().orEmpty()) }
     var pickingTime by rememberSaveable { mutableStateOf(false) }
-    var repeatKind by rememberSaveable { mutableStateOf(RepeatKind.DAILY) }
-    var weekdays by rememberSaveable { mutableStateOf(setOf(initialDay.dayOfWeek.value)) }
-    var periodStart by rememberSaveable { mutableStateOf(initialDay.toString()) }
-    var periodEnd by rememberSaveable { mutableStateOf(initialDay.plusDays(6).toString()) }
+    var repeatKind by rememberSaveable {
+        mutableStateOf(
+            when (currentRepeat) {
+                is MedicineRepeat.Weekdays -> RepeatKind.WEEKDAYS
+                is MedicineRepeat.Period -> RepeatKind.PERIOD
+                else -> RepeatKind.DAILY
+            },
+        )
+    }
+    var weekdays by rememberSaveable {
+        mutableStateOf(
+            (currentRepeat as? MedicineRepeat.Weekdays)?.days?.map(DayOfWeek::getValue)?.toSet()
+                ?: setOf(initialDay.dayOfWeek.value),
+        )
+    }
+    var periodStart by rememberSaveable {
+        mutableStateOf(((currentRepeat as? MedicineRepeat.Period)?.start ?: initialDay).toString())
+    }
+    var periodEnd by rememberSaveable {
+        mutableStateOf(((currentRepeat as? MedicineRepeat.Period)?.end ?: initialDay.plusDays(6)).toString())
+    }
     var pickingDate by rememberSaveable { mutableStateOf<PeriodEdge?>(null) }
     val palette = PlannerExtras.palette
     val repeat = when (repeatKind) {
@@ -97,7 +127,10 @@ fun MedicineForm(
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text("Novo remédio", style = MaterialTheme.typography.headlineMedium.copy(fontSize = 24.sp))
+        Text(if (medicine == null) "Novo remédio" else "Editar remédio", style = MaterialTheme.typography.headlineMedium.copy(fontSize = 24.sp))
+        editNotice?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.secondaryInk)
+        }
 
         FormField("Nome") {
             OutlinedTextField(
@@ -220,6 +253,16 @@ fun MedicineForm(
         ) {
             Text("Salvar remédio", style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp))
         }
+
+        if (onArchive != null) {
+            TextButton(onClick = onArchive, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Arquivar remédio",
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+                    color = palette.alertAmber,
+                )
+            }
+        }
     }
 
     if (pickingTime) {
@@ -306,6 +349,41 @@ private fun StepperGlyph(glyph: String, description: String, onClick: () -> Unit
             .semantics { contentDescription = description }
             .clickable(role = Role.Button, onClick = onClick),
     )
+}
+
+/** Folha inferior "Editar remédio", com a ação de arquivar. */
+@Composable
+fun EditMedicineSheet(
+    medicine: PlannerMedicine,
+    initialDay: LocalDate,
+    today: LocalDate,
+    lastRegisteredDay: LocalDate?,
+    onDismiss: () -> Unit,
+    onSave: (MedicineDraft) -> Unit,
+    onArchive: () -> Unit,
+) {
+    PlannerFormSheet(onDismiss) {
+        MedicineForm(
+            initialDay = initialDay,
+            onSave = onSave,
+            medicine = medicine,
+            onArchive = onArchive,
+            editNotice = editNotice(today, lastRegisteredDay),
+        )
+    }
+}
+
+private val NoticeDayFormatter = DateTimeFormatter.ofPattern("dd/MM", PtBr)
+
+/** Aviso de que a edição começa depois de hoje, porque já há Dose registrada; nulo quando vale hoje. */
+private fun editNotice(today: LocalDate, lastRegisteredDay: LocalDate?): String? {
+    val from = editEffectiveFrom(today, lastRegisteredDay)
+    return when {
+        from == today -> null
+        from == today.plusDays(1) -> "Já há dose registrada hoje, então as mudanças valem a partir de amanhã."
+        else -> "Já há dose registrada até ${lastRegisteredDay?.format(NoticeDayFormatter)}, " +
+            "então as mudanças valem a partir de ${from.format(NoticeDayFormatter)}."
+    }
 }
 
 /** Folha inferior "Novo remédio". */

@@ -154,6 +154,9 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, 
                         zone = zone,
                         onSetDoseStatus = medicinesViewModel::setDoseStatus,
                         onCreateMedicine = medicinesViewModel::createMedicine,
+                        onEditMedicine = medicinesViewModel::editMedicine,
+                        onArchiveMedicine = medicinesViewModel::archiveMedicine,
+                        onRestoreMedicine = medicinesViewModel::restoreMedicine,
                     )
                 },
                 you = {
@@ -161,7 +164,11 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, 
                         currentName = localPlanner.account.username,
                         currentTimezone = localPlanner.account.timezone,
                         onSaveName = { viewModel.saveName(it) },
-                        onSaveTimezone = { viewModel.saveTimezone(it); dayViewModel.updateTimezone(it) },
+                        onSaveTimezone = {
+                            viewModel.saveTimezone(it)
+                            dayViewModel.updateTimezone(it)
+                            medicinesViewModel.updateTimezone(it)
+                        },
                         onExportBackup = { exportLauncher.launch("planner-backup.json") },
                     )
                 },
