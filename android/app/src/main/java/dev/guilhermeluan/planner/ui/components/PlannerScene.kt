@@ -48,9 +48,9 @@ data class SceneColors(
             stars = false,
         )
         val Lavender = SceneColors(
-            skyTop = Color(0xFF3E1B30), skyBottom = Color(0xFF8A5A94),
-            orb = Color(0xFFF3E9FF), orbKind = SceneOrb.Moon,
-            hillBack = Color(0xFF6B4A92), hillMid = Color(0xFF8A5CA8), hillFront = Color(0xFFBC8CC8),
+            skyTop = Color(0xFF3A2147), skyBottom = Color(0xFFA774B4),
+            orb = Color(0xFFF4EEFF), orbKind = SceneOrb.Moon,
+            hillBack = Color(0xFF6E4A8E), hillMid = Color(0xFF8B5FA3), hillFront = Color(0xFFB98AC4),
             stars = true,
         )
         val Account = Today.copy(orbKind = SceneOrb.None)

@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 @Composable
 fun PlannerTabHost(
     today: @Composable () -> Unit,
+    water: @Composable () -> Unit,
     you: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     medicines: (@Composable () -> Unit)? = null,
@@ -34,11 +35,7 @@ fun PlannerTabHost(
                     title = "Nenhum remédio ainda",
                     message = "Cadastre um remédio para ser avisado na hora de cada dose.",
                 )
-                PlannerTab.Water -> EmptyTabScreen(
-                    tab = PlannerTab.Water,
-                    title = "Comece a contar sua água",
-                    message = "Em breve você registra cada copo e acompanha a meta do dia aqui.",
-                )
+                PlannerTab.Water -> water()
                 PlannerTab.You -> you()
             }
         }
