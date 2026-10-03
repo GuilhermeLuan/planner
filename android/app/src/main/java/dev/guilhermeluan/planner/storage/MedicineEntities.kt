@@ -1,5 +1,6 @@
 package dev.guilhermeluan.planner.storage
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -36,6 +37,9 @@ data class MedicineEntity(
     val endDate: String?,
     val status: String,
     val updatedAt: String,
+    val stockAmount: Int? = null,
+    val stockCapacity: Int? = null,
+    val stockThreshold: Int? = null,
 )
 
 @Entity(
@@ -84,4 +88,6 @@ data class DoseRecordEntity(
     val status: String,
     val takenAt: String?,
     val updatedAt: String,
+    /** Quanto do Estoque esta Dose descontou; é o que volta ao desmarcar. */
+    @ColumnInfo(defaultValue = "0") val stockDeducted: Int = 0,
 )

@@ -70,6 +70,7 @@ class MedicineMigrationTest {
     fun migratedMedicineTablesMatchTheSchemaRoomGenerates() {
         val db = versionThreeDatabase()
         PlannerDatabase.MIGRATION_3_4.migrate(db)
+        PlannerDatabase.MIGRATION_4_5.migrate(db)
         val room = Room.inMemoryDatabaseBuilder(context, PlannerDatabase::class.java).build()
         val fresh = room.openHelper.writableDatabase
 
@@ -77,5 +78,51 @@ class MedicineMigrationTest {
             assertEquals(table, shape(fresh, table), shape(db, table))
         }
         room.close()
+    }
+
+    @Test
+    fun migrationFourToFiveKeepsMedicinesWithoutStock() {
+        val db = versionThreeDatabase()
+        PlannerDatabase.MIGRATION_3_4.migrate(db)
+        db.execSQL("INSERT INTO accounts (id, username) VALUES ('a', 'ana')")
+        db.execSQL("INSERT INTO planners (id, accountId) VALUES ('p', 'a')")
+        db.execSQL(
+            "INSERT INTO medicines (id, accountId, plannerId, name, amount, unit, repeatKind, repeatWeekdays, " +
+                "startDate, endDate, status, updatedAt) VALUES ('m', 'a', 'p', 'Vitamina D', 1, 'CAPSULE', 'DAILY', " +
+                "'', '2026-10-01', NULL, 'ACTIVE', '2026-10-01T00:00:00Z')",
+        )
+
+        PlannerDatabase.MIGRATION_4_5.migrate(db)
+
+        db.query("SELECT name, stockAmount, stockCapacity, stockThreshold FROM medicines").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("Vitamina D", c.getString(0))
+            (1..3).forEach { assertTrue(c.isNull(it)) }
+        }
+    }
+
+    @Test
+    fun migrationFourToFiveKeepsExistingDoseRecordsWithNothingDeducted() {
+        val db = versionThreeDatabase()
+        PlannerDatabase.MIGRATION_3_4.migrate(db)
+        db.execSQL("INSERT INTO accounts (id, username) VALUES ('a', 'ana')")
+        db.execSQL("INSERT INTO planners (id, accountId) VALUES ('p', 'a')")
+        db.execSQL(
+            "INSERT INTO medicines (id, accountId, plannerId, name, amount, unit, repeatKind, repeatWeekdays, " +
+                "startDate, endDate, status, updatedAt) VALUES ('m', 'a', 'p', 'Vitamina D', 1, 'CAPSULE', 'DAILY', " +
+                "'', '2026-10-01', NULL, 'ACTIVE', '2026-10-01T00:00:00Z')",
+        )
+        db.execSQL(
+            "INSERT INTO dose_records (medicineId, day, time, accountId, status, takenAt, updatedAt) " +
+                "VALUES ('m', '2026-10-01', '13:00', 'a', 'TAKEN', '2026-10-01T13:01:00Z', '2026-10-01T13:01:00Z')",
+        )
+
+        PlannerDatabase.MIGRATION_4_5.migrate(db)
+
+        db.query("SELECT status, stockDeducted FROM dose_records").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("TAKEN", c.getString(0))
+            assertEquals(0, c.getInt(1))
+        }
     }
 }

@@ -1,5 +1,9 @@
 package dev.guilhermeluan.planner.medicines
 
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -12,9 +16,11 @@ import dev.guilhermeluan.planner.tasks.DoseStatus
 import dev.guilhermeluan.planner.tasks.DoseUnit
 import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.MedicineRepeat
+import dev.guilhermeluan.planner.tasks.MedicineStock
 import dev.guilhermeluan.planner.tasks.MedicineStatus
 import dev.guilhermeluan.planner.tasks.PlannedDose
 import dev.guilhermeluan.planner.tasks.PlannerMedicine
+import dev.guilhermeluan.planner.ui.theme.PlannerPalette
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -196,5 +202,61 @@ class MedicinesScreenTest {
 
         composeRule.onNodeWithText("1x ao dia · 07:00 · seg, qui").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("2x ao dia · 09:00, 21:00 · até 08/10/2026").performScrollTo().assertIsDisplayed()
+    }
+
+    private fun withStock(stock: Int, threshold: Int) =
+        medicine("m2", "Vitamina D", LocalTime.of(13, 0)).copy(stock = MedicineStock(stock, 30, threshold))
+
+    @Test
+    fun medicineCardShowsTheStockRemainingInItsUnit() {
+        show(medicines = listOf(withStock(12, 5)))
+
+        composeRule.onNodeWithTag("stock-bar-m2", useUnmergedTree = true).assertExists()
+        composeRule.onNodeWithText("12 cápsulas").assertIsDisplayed()
+        composeRule.onNodeWithText("Restam 12 · repor em breve").assertDoesNotExist()
+        composeRule.onNodeWithTag("medicine-card-m2").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Estoque em dia"))
+    }
+
+    @Test
+    fun medicineCardTurnsAmberWithRestockHintAtOrBelowTheThreshold() {
+        show(medicines = listOf(withStock(4, 5)))
+
+        composeRule.onNodeWithText("Restam 4 · repor em breve").assertIsDisplayed()
+        composeRule.onNodeWithTag("medicine-card-m2").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Estoque baixo"))
+    }
+
+    @Test
+    fun alertAlsoShowsExactlyAtTheThreshold() {
+        show(medicines = listOf(withStock(5, 5)))
+
+        composeRule.onNodeWithText("Restam 5 · repor em breve").assertIsDisplayed()
+    }
+
+    @Test
+    fun medicineWithoutStockShowsNoBar() {
+        show()
+
+        composeRule.onNodeWithTag("stock-bar-m2", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun stockBarFillsInProportionToTheRegisteredStock() {
+        show(medicines = listOf(withStock(12, 5)))
+
+        composeRule.onNodeWithTag("stock-bar-m2", useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo(0.4f, 0f..1f)))
+    }
+
+    @Test
+    fun alertStyleUsesTheAmberTokensAndNormalStyleDoesNot() {
+        val palette = PlannerPalette.Light
+        val primary = androidx.compose.ui.graphics.Color.Black
+
+        val low = stockStyle(true, palette, primary)
+        val ok = stockStyle(false, palette, primary)
+
+        assertEquals(listOf(palette.alertSurface, palette.alertLine, palette.alertAmber, palette.alertAmber, palette.alertTrack, palette.alertAmber),
+            listOf(low.container, low.border, low.icon, low.bar, low.track, low.label))
+        assertEquals(listOf(palette.surface, palette.line, primary, palette.blush), listOf(ok.container, ok.border, ok.bar, ok.track))
     }
 }

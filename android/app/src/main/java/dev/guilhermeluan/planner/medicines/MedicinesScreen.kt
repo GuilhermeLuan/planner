@@ -39,6 +39,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +59,7 @@ import dev.guilhermeluan.planner.ui.components.PtBr
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import dev.guilhermeluan.planner.ui.navigation.PlannerTab
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
+import dev.guilhermeluan.planner.ui.theme.PlannerPalette
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
@@ -336,21 +341,70 @@ private fun DoseRow(dose: PlannedDose, zone: ZoneId, onSetDoseStatus: (PlannedDo
 @Composable
 private fun MedicineCard(medicine: PlannerMedicine) {
     val palette = PlannerExtras.palette
-    Row(
+    val low = medicine.stock?.low == true
+    val shape = RoundedCornerShape(20.dp)
+    val style = stockStyle(low, palette, MaterialTheme.colorScheme.primary)
+    Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(palette.surface)
-            .border(1.dp, palette.line, RoundedCornerShape(20.dp))
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(shape)
+            .background(style.container)
+            .border(1.dp, style.border, shape)
+            .padding(16.dp)
+            .testTag("medicine-card-${medicine.id}")
+            .semantics(mergeDescendants = true) {
+                if (medicine.stock != null) stateDescription = if (low) "Estoque baixo" else "Estoque em dia"
+            },
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(medicine.name, style = MaterialTheme.typography.titleMedium, color = palette.wine)
-            Text(scheduleSummary(medicine), style = MaterialTheme.typography.bodySmall, color = palette.mutedInk)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(medicine.name, style = MaterialTheme.typography.titleMedium, color = palette.wine)
+                Text(scheduleSummary(medicine), style = MaterialTheme.typography.bodySmall, color = palette.mutedInk)
+            }
+            Icon(
+                PlannerTab.Medicines.icon,
+                contentDescription = null,
+                tint = style.icon,
+                modifier = Modifier.size(20.dp),
+            )
         }
-        Icon(PlannerTab.Medicines.icon, contentDescription = null, tint = MedicineCardIcon, modifier = Modifier.size(20.dp))
+        medicine.stock?.let { stock ->
+            StockBar(
+                fraction = stock.fraction,
+                fill = style.bar,
+                track = style.track,
+                modifier = Modifier.testTag("stock-bar-${medicine.id}"),
+            )
+            Text(
+                if (low) "Restam ${stock.amount} · repor em breve" else medicine.unit.format(stock.amount),
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                color = style.label,
+            )
+        }
+    }
+}
+
+internal class StockStyle(
+    val container: Color,
+    val border: Color,
+    val icon: Color,
+    val bar: Color,
+    val track: Color,
+    val label: Color,
+)
+
+@Composable
+private fun StockBar(fraction: Float, fill: Color, track: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(track)
+            .semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction.coerceIn(0f, 1f), 0f..1f) },
+    ) {
+        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(6.dp).clip(RoundedCornerShape(3.dp)).background(fill))
     }
 }
 
@@ -386,4 +440,10 @@ private fun EmptyMedicines() {
             textAlign = TextAlign.Center,
         )
     }
+}
+
+internal fun stockStyle(low: Boolean, palette: PlannerPalette, primary: Color) = if (low) {
+    StockStyle(palette.alertSurface, palette.alertLine, palette.alertAmber, palette.alertAmber, palette.alertTrack, palette.alertAmber)
+} else {
+    StockStyle(palette.surface, palette.line, MedicineCardIcon, primary, palette.blush, palette.secondaryInk)
 }
