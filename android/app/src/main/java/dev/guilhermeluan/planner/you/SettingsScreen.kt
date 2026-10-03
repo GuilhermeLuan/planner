@@ -38,6 +38,7 @@ import dev.guilhermeluan.planner.ui.components.PlannerScene
 import dev.guilhermeluan.planner.ui.components.PtBr
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
+import dev.guilhermeluan.planner.ui.theme.youTones
 import java.time.format.DateTimeFormatter
 
 private enum class SettingsSheet { Name, Timezone, Archived }

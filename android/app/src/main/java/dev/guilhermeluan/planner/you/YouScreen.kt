@@ -47,6 +47,7 @@ import dev.guilhermeluan.planner.ui.components.PlannerScene
 import dev.guilhermeluan.planner.ui.components.PtBr
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
+import dev.guilhermeluan.planner.ui.theme.youTones
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
@@ -68,40 +69,6 @@ internal val SceneTitleInk = Color(0xFFFFF4F8)
 private val SceneSubtitleInk = Color(0xFFF6C9DA)
 internal val SettingsSubtitleInk = Color(0xFFFFE1EA)
 private val ScenePillFill = Color.White.copy(alpha = 0.16f)
-
-/** Tons dos blocos de constância e dos cartões; os claros são os do Figma, os escuros seguem os tokens noturnos. */
-internal data class YouTones(
-    val waterTile: Color,
-    val waterInk: Color,
-    val doseTile: Color,
-    val doseInk: Color,
-    val routineTile: Color,
-    val routineInk: Color,
-    val tileLabel: Color,
-    val cardLine: Color,
-    val rowDivider: Color,
-) {
-    companion object {
-        val Light = YouTones(
-            waterTile = Color(0xFFE4E9FB), waterInk = Color(0xFF3D4C93),
-            doseTile = Color(0xFFFDE6DA), doseInk = Color(0xFF8A4526),
-            routineTile = Color(0xFFFFE3EE), routineInk = Color(0xFFA83262),
-            tileLabel = Color(0xFF5E4552),
-            cardLine = Color(0xFFF6DCE6), rowDivider = Color(0xFFF6E4EB),
-        )
-        val Dark = YouTones(
-            waterTile = Color(0xFF2B2740), waterInk = Color(0xFFC9D0F5),
-            doseTile = Color(0xFF3A2620), doseInk = Color(0xFFFFB48A),
-            routineTile = Color(0xFF35212A), routineInk = Color(0xFFFF8FBA),
-            tileLabel = Color(0xFFD8B8C5),
-            cardLine = Color(0xFF5F3D4B), rowDivider = Color(0xFF4A3039),
-        )
-    }
-}
-
-internal val youTones: YouTones
-    @Composable @ReadOnlyComposable get() =
-        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) YouTones.Dark else YouTones.Light
 
 /** A aba Você: perfil e constância, com as configurações numa tela à parte. */
 @Composable

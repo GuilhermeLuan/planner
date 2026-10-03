@@ -3,6 +3,12 @@ package dev.guilhermeluan.planner.day
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -54,7 +60,7 @@ class DayScreenSummaryTest {
 
     private fun card(tag: String, text: String) {
         composeRule.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()
-        composeRule.onNode(hasText(text) and hasAnyAncestor(androidx.compose.ui.test.hasTestTag(tag)), useUnmergedTree = true)
+        composeRule.onNode(hasText(text) and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true)
             .assertIsDisplayed()
     }
 
@@ -66,7 +72,7 @@ class DayScreenSummaryTest {
         card("summary-routines", "2 de 4")
         card("summary-water", "1,2 de 2 L")
         card("summary-medicines", "1 de 3")
-        composeRule.onNode(hasText("Rotinas") and hasAnyAncestor(androidx.compose.ui.test.hasTestTag("summary-routines")), useUnmergedTree = true)
+        composeRule.onNode(hasText("Rotinas") and hasAnyAncestor(hasTestTag("summary-routines")), useUnmergedTree = true)
             .assertIsDisplayed()
     }
 
@@ -89,5 +95,21 @@ class DayScreenSummaryTest {
         composeRule.onNodeWithTag("summary-routines").performScrollTo().performClick()
 
         composeRule.runOnIdle { assertEquals(0, opened) }
+    }
+
+    @Test
+    fun clickableTilesSayWhereTheyGo() {
+        show()
+
+        composeRule.onNode(
+            hasTestTag("summary-water") and SemanticsMatcher("opens the Água tab") {
+                it.config.getOrNull(SemanticsActions.OnClick)?.label == "Abrir a aba Água"
+            },
+        ).assertExists()
+        composeRule.onNode(
+            hasTestTag("summary-medicines") and SemanticsMatcher("opens the Remédios tab") {
+                it.config.getOrNull(SemanticsActions.OnClick)?.label == "Abrir a aba Remédios"
+            },
+        ).assertExists()
     }
 }

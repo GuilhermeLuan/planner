@@ -26,6 +26,7 @@ class DaySummaryTest {
     @Test
     fun summarisesRoutinesWaterAndDosesOfTheDay() {
         val summary = DaySummary.of(
+            selectedDay = day,
             routines = listOf(
                 routine("a", RoutineOccurrenceStatus.DONE),
                 routine("b", RoutineOccurrenceStatus.DONE),
@@ -47,6 +48,7 @@ class DaySummaryTest {
     @Test
     fun emptyDayHasZeroProgressAndWaterCapsAtTheGoal() {
         val summary = DaySummary.of(
+            selectedDay = day,
             routines = emptyList(),
             water = WaterDay(day, consumedMl = 2500, goalMl = 2000),
             doses = emptyList(),
@@ -58,5 +60,40 @@ class DaySummaryTest {
         assertEquals(1f, summary.water.progress, 0f)
         assertEquals("0 de 0", summary.medicines.value)
         assertEquals(0f, summary.medicines.progress, 0f)
+    }
+
+    @Test
+    fun ignoresDataFromAnotherDayWhileTheSelectedDayLoads() {
+        val yesterday = day.minusDays(1)
+
+        val summary = DaySummary.of(
+            selectedDay = day,
+            routines = emptyList(),
+            water = WaterDay(yesterday, consumedMl = 1500, goalMl = 2000),
+            doses = listOf(dose(8, DoseStatus.TAKEN).copy(day = yesterday)),
+        )
+
+        assertEquals("—", summary.water.value)
+        assertEquals(0f, summary.water.progress, 0f)
+        assertEquals("0 de 0", summary.medicines.value)
+    }
+
+    @Test
+    fun skippedDosesStayInTheTotalButCountAsNotTaken() {
+        val summary = DaySummary.of(
+            selectedDay = day,
+            routines = emptyList(),
+            water = null,
+            doses = listOf(dose(8, DoseStatus.TAKEN), dose(14, DoseStatus.SKIPPED)),
+        )
+
+        assertEquals("1 de 2", summary.medicines.value)
+    }
+
+    @Test
+    fun aZeroGoalDoesNotBreakTheProgress() {
+        val summary = DaySummary.of(day, emptyList(), WaterDay(day, consumedMl = 300, goalMl = 0), emptyList())
+
+        assertEquals(0f, summary.water.progress, 0f)
     }
 }

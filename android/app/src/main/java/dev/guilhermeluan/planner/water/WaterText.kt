@@ -19,10 +19,13 @@ object WaterText {
         else -> "${decimalLiters(ml)} litros"
     }
 
+    /** Consumo contra a meta, como no resumo do Hoje ("1,2 de 2 L"). */
+    fun consumedOfGoal(consumedMl: Int, goalMl: Int): String = "${decimalLiters(consumedMl)} de ${shortLiters(goalMl)}"
+
     /** Rótulo curto das sugestões de meta ("2,5 L"). */
     fun shortLiters(ml: Int): String = "${decimalLiters(ml)} L"
 
-    fun decimalLiters(ml: Int): String =
+    private fun decimalLiters(ml: Int): String =
         NumberFormat.getNumberInstance(PtBr).apply { maximumFractionDigits = 2 }.format(ml / 1000.0)
 
     fun remaining(consumedMl: Int, goalMl: Int): String {

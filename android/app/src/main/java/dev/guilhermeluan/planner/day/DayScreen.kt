@@ -1,9 +1,6 @@
 package dev.guilhermeluan.planner.day
 
 import dev.guilhermeluan.planner.ui.components.PlannerScene
-import dev.guilhermeluan.planner.you.youTones
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.ui.graphics.luminance
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
@@ -19,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -65,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
+import dev.guilhermeluan.planner.ui.theme.youTones
 import androidx.compose.ui.platform.testTag
 import dev.guilhermeluan.planner.tasks.DayPlan
 import dev.guilhermeluan.planner.tasks.PlannedRoutineOccurrence
@@ -427,7 +426,6 @@ private fun DaySummaryRow(
 ) {
     val palette = PlannerExtras.palette
     val tones = youTones
-    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     Row(
         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -435,12 +433,11 @@ private fun DaySummaryRow(
         SummaryTile("summary-routines", "Rotinas", summary.routines, tones.routineTile, palette.raspberry, Modifier.weight(1f))
         SummaryTile(
             "summary-water", "Água", summary.water, tones.waterTile, palette.waterLavender, Modifier.weight(1f),
-            onClick = onOpenWater,
+            onClickLabel = "Abrir a aba Água", onClick = onOpenWater,
         )
         SummaryTile(
-            "summary-medicines", "Remédios", summary.medicines, tones.doseTile,
-            if (dark) tones.doseInk else Color(0xFFB5603A), Modifier.weight(1f),
-            onClick = onOpenMedicines,
+            "summary-medicines", "Remédios", summary.medicines, tones.doseTile, tones.doseLabel, Modifier.weight(1f),
+            onClickLabel = "Abrir a aba Remédios", onClick = onOpenMedicines,
         )
     }
 }
@@ -453,6 +450,7 @@ private fun SummaryTile(
     tile: Color,
     accent: Color,
     modifier: Modifier = Modifier,
+    onClickLabel: String? = null,
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(20.dp)
@@ -461,7 +459,7 @@ private fun SummaryTile(
             .testTag(tag)
             .clip(shape)
             .background(tile)
-            .let { if (onClick != null) it.clickable(role = Role.Button, onClick = onClick) else it }
+            .let { if (onClick != null) it.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick) else it }
             .padding(horizontal = 12.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

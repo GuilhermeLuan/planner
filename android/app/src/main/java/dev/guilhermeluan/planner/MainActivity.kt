@@ -34,13 +34,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.guilhermeluan.planner.day.DayScreen
 import dev.guilhermeluan.planner.day.DaySummary
-import dev.guilhermeluan.planner.ui.navigation.PlannerTab
 import dev.guilhermeluan.planner.day.DayViewModel
 import dev.guilhermeluan.planner.medicines.MedicinesScreen
 import dev.guilhermeluan.planner.medicines.MedicinesViewModel
 import dev.guilhermeluan.planner.session.OnboardingScreen
 import dev.guilhermeluan.planner.session.PlannerAppUiState
 import dev.guilhermeluan.planner.session.PlannerViewModel
+import dev.guilhermeluan.planner.ui.navigation.PlannerTab
 import dev.guilhermeluan.planner.ui.navigation.PlannerTabHost
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 import dev.guilhermeluan.planner.water.WaterScreen
@@ -149,11 +149,11 @@ private fun PlannerApp(
                 medicinesViewModel.selectDay(dayState.selectedDay)
                 waterViewModel.viewDay(dayState.selectedDay)
             }
-            // Durante a troca de Dia, dados do Dia anterior ainda podem estar no estado; não entram no resumo.
             val daySummary = DaySummary.of(
+                selectedDay = dayState.selectedDay,
                 routines = dayState.plan.routines,
-                water = waterState.viewedDay.takeIf { it.day == dayState.selectedDay },
-                doses = medicinesState.doses.filter { it.day == dayState.selectedDay },
+                water = waterState.viewedDay,
+                doses = medicinesState.doses,
             )
             val accountTimezone = localPlanner.account.timezone
             val zone = ZoneId.of(accountTimezone)
