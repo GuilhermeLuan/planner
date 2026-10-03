@@ -9,6 +9,7 @@ import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.storage.TaskEntity
 import dev.guilhermeluan.planner.storage.RoutineEntity
 import dev.guilhermeluan.planner.storage.RoutineOccurrenceEntity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import dev.guilhermeluan.planner.storage.SessionMetadataEntity
 import org.json.JSONArray
@@ -212,5 +213,15 @@ class BackupExporterTest {
         assertEquals("2026-07-13", ocorrencia.getString("dia"))
         assertEquals("07:00", ocorrencia.getString("horario"))
         assertEquals("DONE", ocorrencia.getString("status"))
+    }
+
+    @Test
+    fun `the last saved backup is remembered with the moment it was saved`() = runTest {
+        val exporter = BackupExporter(database, Clock.fixed(Instant.parse("2026-09-28T15:00:00Z"), ZoneOffset.UTC))
+        assertEquals(null, exporter.observeLastSaved().first())
+
+        exporter.recordSaved()
+
+        assertEquals(Instant.parse("2026-09-28T15:00:00Z"), exporter.observeLastSaved().first())
     }
 }

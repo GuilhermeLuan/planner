@@ -3,12 +3,24 @@ package dev.guilhermeluan.planner.backup
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import org.json.JSONArray
 import org.json.JSONObject
+import dev.guilhermeluan.planner.storage.SessionMetadataEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.Clock
+import java.time.Instant
 
 class BackupExporter(
     private val database: PlannerDatabase,
     private val clock: Clock,
 ) {
+    /** Guarda quando um backup foi gravado, para a aba Você mostrar "Último em ...". */
+    suspend fun recordSaved() {
+        database.sessionDao().saveMetadata(SessionMetadataEntity(LAST_SAVED_KEY, clock.instant().toString()))
+    }
+
+    fun observeLastSaved(): Flow<Instant?> =
+        database.sessionDao().observeMetadata(LAST_SAVED_KEY).map { it?.let(Instant::parse) }
+
     suspend fun export(accountId: String): JSONObject {
         val sessionDao = database.sessionDao()
         val plannerDao = database.plannerDao()
@@ -60,3 +72,5 @@ class BackupExporter(
             }))
     }
 }
+
+private const val LAST_SAVED_KEY = "last_backup_at"

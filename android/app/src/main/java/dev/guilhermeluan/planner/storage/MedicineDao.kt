@@ -173,6 +173,9 @@ abstract class MedicineDao {
     @Query("SELECT * FROM dose_records WHERE accountId = :accountId AND `day` = :day")
     abstract fun observeDoseRecords(accountId: String, day: String): Flow<List<DoseRecordEntity>>
 
+    @Query("SELECT * FROM dose_records WHERE accountId = :accountId AND `day` BETWEEN :from AND :to")
+    abstract fun observeDoseRecordsBetween(accountId: String, from: String, to: String): Flow<List<DoseRecordEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertDoseSnooze(snooze: DoseSnoozeEntity)
 

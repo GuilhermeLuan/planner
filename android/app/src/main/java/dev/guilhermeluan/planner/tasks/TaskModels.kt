@@ -64,6 +64,15 @@ data class DayPlan(
     val archivedTasks: List<PlannerTask> = emptyList(),
 )
 
+/** Tudo o que está arquivado no Planner, para restaurar de um só lugar. */
+data class ArchivedItems(
+    val tasks: List<PlannerTask> = emptyList(),
+    val routines: List<PlannerRoutine> = emptyList(),
+    val medicines: List<PlannerMedicine> = emptyList(),
+) {
+    val isEmpty: Boolean get() = tasks.isEmpty() && routines.isEmpty() && medicines.isEmpty()
+}
+
 fun interface IdGenerator {
     fun nextId(): String
 }

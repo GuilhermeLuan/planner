@@ -36,7 +36,6 @@ import dev.guilhermeluan.planner.day.DayScreen
 import dev.guilhermeluan.planner.day.DayViewModel
 import dev.guilhermeluan.planner.medicines.MedicinesScreen
 import dev.guilhermeluan.planner.medicines.MedicinesViewModel
-import dev.guilhermeluan.planner.session.AccountSettingsScreen
 import dev.guilhermeluan.planner.session.OnboardingScreen
 import dev.guilhermeluan.planner.session.PlannerAppUiState
 import dev.guilhermeluan.planner.session.PlannerViewModel
@@ -44,12 +43,17 @@ import dev.guilhermeluan.planner.ui.navigation.PlannerTabHost
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 import dev.guilhermeluan.planner.water.WaterScreen
 import dev.guilhermeluan.planner.water.WaterViewModel
+import dev.guilhermeluan.planner.you.YouTab
+import dev.guilhermeluan.planner.you.YouViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import dev.guilhermeluan.planner.notifications.NotificationPermission
 
 class MainActivity : ComponentActivity() {
     private val viewModel: PlannerViewModel by viewModels { PlannerViewModel.Factory(application as PlannerApplication) }
     private val dayViewModel: DayViewModel by viewModels { DayViewModel.Factory(application as PlannerApplication) }
     private val medicinesViewModel: MedicinesViewModel by viewModels { MedicinesViewModel.Factory(application as PlannerApplication) }
     private val waterViewModel: WaterViewModel by viewModels { WaterViewModel.Factory(application as PlannerApplication) }
+    private val youViewModel: YouViewModel by viewModels { YouViewModel.Factory(application as PlannerApplication) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,7 +61,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlannerTheme {
                 NotificationPermissionRequester {
-                    PlannerApp(viewModel, dayViewModel, medicinesViewModel, waterViewModel)
+                    PlannerApp(viewModel, dayViewModel, medicinesViewModel, waterViewModel, youViewModel)
                 }
             }
         }
@@ -84,11 +88,13 @@ private fun PlannerApp(
     dayViewModel: DayViewModel,
     medicinesViewModel: MedicinesViewModel,
     waterViewModel: WaterViewModel,
+    youViewModel: YouViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dayState by dayViewModel.uiState.collectAsStateWithLifecycle()
     val medicinesState by medicinesViewModel.uiState.collectAsStateWithLifecycle()
     val waterState by waterViewModel.uiState.collectAsStateWithLifecycle()
+    val youState by youViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -102,6 +108,7 @@ private fun PlannerApp(
                         context.contentResolver.openOutputStream(uri)?.use { stream ->
                             stream.write(json.toString(2).toByteArray())
                         }
+                        youViewModel.backupSaved()
                         Toast.makeText(context, "Backup exportado com sucesso", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
                         Log.e(TAG, "Falha ao escrever backup", e)
@@ -129,6 +136,12 @@ private fun PlannerApp(
                 dayViewModel.bind(localPlanner)
                 medicinesViewModel.bind(localPlanner)
                 waterViewModel.bind(localPlanner)
+            }
+            LaunchedEffect(localPlanner) { youViewModel.bind(localPlanner) }
+            // As notificações podem ser ligadas ou desligadas fora do app; relê ao voltar para ele.
+            LifecycleResumeEffect(Unit) {
+                youViewModel.setNotificationsEnabled(NotificationPermission.areEnabled(context))
+                onPauseOrDispose {}
             }
             LaunchedEffect(dayState.selectedDay) { medicinesViewModel.selectDay(dayState.selectedDay) }
             val accountTimezone = localPlanner.account.timezone
@@ -180,9 +193,8 @@ private fun PlannerApp(
                     )
                 },
                 you = {
-                    AccountSettingsScreen(
-                        currentName = localPlanner.account.username,
-                        currentTimezone = localPlanner.account.timezone,
+                    YouTab(
+                        state = youState,
                         onSaveName = { viewModel.saveName(it) },
                         onSaveTimezone = {
                             viewModel.saveTimezone(it)
@@ -190,7 +202,13 @@ private fun PlannerApp(
                             medicinesViewModel.updateTimezone(it)
                             waterViewModel.updateTimezone(it)
                         },
+                        onOpenNotificationSettings = {
+                            context.startActivity(NotificationPermission.settingsIntent(context))
+                        },
                         onExportBackup = { exportLauncher.launch("planner-backup.json") },
+                        onRestoreTask = dayViewModel::restoreTask,
+                        onRestoreRoutine = dayViewModel::restoreRoutine,
+                        onRestoreMedicine = medicinesViewModel::restoreMedicine,
                     )
                 },
             )

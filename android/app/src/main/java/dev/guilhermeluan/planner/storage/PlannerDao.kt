@@ -48,4 +48,9 @@ abstract class PlannerDao {
     @Query("SELECT * FROM tasks WHERE accountId = :accountId ORDER BY day, time, title")
     abstract suspend fun tasksByAccount(accountId: String): List<TaskEntity>
 
+    @Query("SELECT MIN(day) FROM tasks WHERE accountId = :accountId")
+    abstract suspend fun earliestTaskDay(accountId: String): String?
+
+    @Query("SELECT * FROM tasks WHERE accountId = :accountId AND archived = 1 ORDER BY day, time, title")
+    abstract fun observeAllArchivedTasks(accountId: String): Flow<List<TaskEntity>>
 }

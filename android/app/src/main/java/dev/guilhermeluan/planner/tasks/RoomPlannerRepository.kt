@@ -81,6 +81,19 @@ class RoomPlannerRepository(
         taskDays.map(LocalDate::parse).toSet() + routineDays
     }
 
+    fun observeArchivedItems(accountId: String): Flow<ArchivedItems> = combine(
+        dao.observeAllArchivedTasks(accountId),
+        routineDao.observeRoutines(accountId),
+        observeArchivedMedicines(accountId),
+    ) { tasks, routines, medicines ->
+        ArchivedItems(
+            tasks = tasks.map(TaskEntity::toDomain),
+            routines = routines.map { it.toDomain() }.filter { it.status == RoutineStatus.ARCHIVED }
+                .sortedBy { it.title.lowercase() },
+            medicines = medicines,
+        )
+    }
+
     fun observeScheduledTasks(accountId: String): Flow<List<PlannerTask>> =
         dao.observeScheduledTasks(accountId).map { tasks -> tasks.map(TaskEntity::toDomain) }
 
@@ -303,11 +316,6 @@ class RoomPlannerRepository(
             rows.associate { it.medicineId to LocalDate.parse(it.day) }
         }
 
-    /**
-     * Doses de um Dia: as projetadas pela versão do Remédio que valia naquele Dia (menos nos Períodos
-     * arquivados) e as já registradas. Com o Remédio arquivado, as registradas do Dia do arquivamento e de
-     * antes seguem visíveis; as de Dias depois dele ficam escondidas até restaurar.
-     */
     fun observeDoses(accountId: String, day: LocalDate): Flow<List<PlannedDose>> = combine(
         medicineDao.observeMedicines(accountId),
         medicineDao.observeTimes(accountId),
@@ -315,29 +323,59 @@ class RoomPlannerRepository(
         medicineDao.observePreviousVersions(accountId),
         medicineDao.observeArchivedPeriods(accountId),
     ) { medicineEntities, times, records, previousVersions, archivedPeriods ->
-        val recordsByMedicine = records.groupBy { it.medicineId }
-        val previousVersionsByMedicine = previousVersions.groupBy { it.medicineId }
-        val archivedPeriodsByMedicine = archivedPeriods.groupBy { it.medicineId }
-        assembleMedicines(medicineEntities, times)
-            .flatMap { medicine ->
-                val periods = archivedPeriodsByMedicine[medicine.id].orEmpty().map { it.toDomain() }
-                val hidesRegistered = periods.any { it.until == null && day.isAfter(it.from) }
-                val registered = recordsByMedicine[medicine.id].orEmpty()
-                    .takeUnless { hidesRegistered }.orEmpty()
-                    .associateBy { LocalTime.parse(it.time) }
-                val version = medicine.versionOn(day, previousVersionsByMedicine[medicine.id].orEmpty().map { it.toDomain() })
-                val archived = periods.any { it.covers(day) }
-                val projected = if (!archived && MedicineRecurrence.occursOn(version.copy(status = MedicineStatus.ACTIVE), day)) {
-                    version.times
-                } else {
-                    emptySet()
-                }
-                (projected + registered.keys).map { time -> version.doseOn(day, time, registered[time]) }
-            }
+        projectDoses(day, assembleMedicines(medicineEntities, times), records, previousVersions, archivedPeriods)
             .sortedBy(PlannedDose::time)
     }.combine(medicineDao.observeDoseSnoozes(accountId, day.toString())) { doses, snoozes ->
         val snoozedUntil = snoozes.associate { (it.medicineId to LocalTime.parse(it.time)) to Instant.parse(it.snoozedUntil) }
         doses.map { it.copy(snoozedUntil = snoozedUntil[it.medicineId to it.time]) }
+    }
+
+    /** As Doses de cada Dia de [days], na mesma projeção de [observeDoses], em ordem de Dia e horário. */
+    fun observeDosesBetween(accountId: String, days: ClosedRange<LocalDate>): Flow<List<PlannedDose>> = combine(
+        medicineDao.observeMedicines(accountId),
+        medicineDao.observeTimes(accountId),
+        medicineDao.observeDoseRecordsBetween(accountId, days.start.toString(), days.endInclusive.toString()),
+        medicineDao.observePreviousVersions(accountId),
+        medicineDao.observeArchivedPeriods(accountId),
+    ) { medicineEntities, times, records, previousVersions, archivedPeriods ->
+        val medicines = assembleMedicines(medicineEntities, times)
+        val recordsByDay = records.groupBy { it.day }
+        Week.days(days).flatMap { day ->
+            projectDoses(day, medicines, recordsByDay[day.toString()].orEmpty(), previousVersions, archivedPeriods)
+                .sortedBy(PlannedDose::time)
+        }
+    }
+
+    /**
+     * Doses de um Dia: as projetadas pela versão do Remédio que valia naquele Dia (menos nos Períodos
+     * arquivados) e as já registradas. Com o Remédio arquivado, as registradas do Dia do arquivamento e de
+     * antes seguem visíveis; as de Dias depois dele ficam escondidas até restaurar.
+     */
+    private fun projectDoses(
+        day: LocalDate,
+        medicines: List<PlannerMedicine>,
+        records: List<DoseRecordEntity>,
+        previousVersions: List<MedicinePreviousVersionEntity>,
+        archivedPeriods: List<MedicineArchivedPeriodEntity>,
+    ): List<PlannedDose> {
+        val recordsByMedicine = records.groupBy { it.medicineId }
+        val previousVersionsByMedicine = previousVersions.groupBy { it.medicineId }
+        val archivedPeriodsByMedicine = archivedPeriods.groupBy { it.medicineId }
+        return medicines.flatMap { medicine ->
+            val periods = archivedPeriodsByMedicine[medicine.id].orEmpty().map { it.toDomain() }
+            val hidesRegistered = periods.any { it.until == null && day.isAfter(it.from) }
+            val registered = recordsByMedicine[medicine.id].orEmpty()
+                .takeUnless { hidesRegistered }.orEmpty()
+                .associateBy { LocalTime.parse(it.time) }
+            val version = medicine.versionOn(day, previousVersionsByMedicine[medicine.id].orEmpty().map { it.toDomain() })
+            val archived = periods.any { it.covers(day) }
+            val projected = if (!archived && MedicineRecurrence.occursOn(version.copy(status = MedicineStatus.ACTIVE), day)) {
+                version.times
+            } else {
+                emptySet()
+            }
+            (projected + registered.keys).map { time -> version.doseOn(day, time, registered[time]) }
+        }
     }
 
     private fun assembleMedicines(

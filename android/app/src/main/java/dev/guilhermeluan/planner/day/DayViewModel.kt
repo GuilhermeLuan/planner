@@ -113,6 +113,13 @@ class DayViewModel(
         }
     }
 
+    fun restoreRoutine(routineId: String) {
+        accountId ?: return
+        viewModelScope.launch {
+            dayPlanner.restoreRoutine(routineId)
+        }
+    }
+
     fun toggleRoutine(
         routineId: String,
         day: LocalDate,

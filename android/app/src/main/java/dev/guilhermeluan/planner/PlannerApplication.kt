@@ -15,6 +15,7 @@ import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.tasks.IdGenerator
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import dev.guilhermeluan.planner.water.WaterRepository
+import dev.guilhermeluan.planner.you.ConsistencyRepository
 import java.time.Clock
 import java.time.ZoneId
 import java.util.UUID
@@ -44,6 +45,9 @@ class PlannerApplication : Application() {
         medicineReminders.applyAction(local.account.id, local.account.timezone, key, action)
     }
     val waterRepository by lazy { WaterRepository(database, Clock.systemUTC()) }
+    val consistencyRepository by lazy {
+        ConsistencyRepository(database, medicinesRepository, waterRepository, Clock.systemUTC())
+    }
     val accountSettingsRepository by lazy { AccountSettingsRepository(database) }
     val backupExporter by lazy { BackupExporter(database, Clock.systemUTC()) }
     val migrationToLocal by lazy {
