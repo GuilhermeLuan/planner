@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -62,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
+import dev.guilhermeluan.planner.ui.theme.plannerTones
 import androidx.compose.ui.platform.testTag
 import dev.guilhermeluan.planner.tasks.DayPlan
 import dev.guilhermeluan.planner.tasks.PlannedRoutineOccurrence
@@ -97,6 +99,9 @@ fun DayScreen(
     onRescheduleTask: (String, LocalDate) -> Unit = { _, _ -> },
     onArchiveTask: (String) -> Unit = {},
     onRestoreTask: (String) -> Unit = {},
+    summary: DaySummary = DaySummary.Empty,
+    onOpenWater: () -> Unit = {},
+    onOpenMedicines: () -> Unit = {},
     userName: String = "",
     now: LocalTime = LocalTime.now(),
     modifier: Modifier = Modifier,
@@ -137,6 +142,11 @@ fun DayScreen(
                         markedDays = state.markedDays,
                         onSelectDay = onSelectDay,
                     )
+                }
+                item {
+                    DaySection(title = "Seu dia") {
+                        DaySummaryRow(summary, onOpenWater, onOpenMedicines)
+                    }
                 }
                 item {
                     DaySection(
@@ -404,6 +414,79 @@ private fun DayRibbon(
                     Spacer(Modifier.size(4.dp))
                 }
             }
+        }
+    }
+}
+
+/** Como um resumo do "Seu dia" se veste: o fundo do tile e a cor do rótulo e da barra. */
+private class SummaryTileStyle(val tile: Color, val accent: Color)
+
+/** O toque de um resumo que leva a outra aba; o rótulo diz para onde. */
+private class SummaryTileAction(val label: String, val onClick: () -> Unit)
+
+@Composable
+private fun DaySummaryRow(
+    summary: DaySummary,
+    onOpenWater: () -> Unit,
+    onOpenMedicines: () -> Unit,
+) {
+    val palette = PlannerExtras.palette
+    val tones = plannerTones
+    Row(
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SummaryTile(
+            "summary-routines", "Rotinas", summary.routines,
+            SummaryTileStyle(tones.routineTile, palette.raspberry), Modifier.weight(1f),
+        )
+        SummaryTile(
+            "summary-water", "Água", summary.water,
+            SummaryTileStyle(tones.waterTile, palette.waterLavender), Modifier.weight(1f),
+            action = SummaryTileAction("Abrir a aba Água", onOpenWater),
+        )
+        SummaryTile(
+            "summary-medicines", "Remédios", summary.medicines,
+            SummaryTileStyle(tones.doseTile, tones.doseLabel), Modifier.weight(1f),
+            action = SummaryTileAction("Abrir a aba Remédios", onOpenMedicines),
+        )
+    }
+}
+
+@Composable
+private fun SummaryTile(
+    tag: String,
+    label: String,
+    item: SummaryItem,
+    style: SummaryTileStyle,
+    modifier: Modifier = Modifier,
+    action: SummaryTileAction? = null,
+) {
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = modifier
+            .testTag(tag)
+            .clip(shape)
+            .background(style.tile)
+            .let { if (action != null) it.clickable(onClickLabel = action.label, role = Role.Button, onClick = action.onClick) else it }
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp), color = style.accent)
+        Text(
+            item.value,
+            style = MaterialTheme.typography.headlineSmall.copy(fontSize = 16.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+        Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(PlannerExtras.palette.surface)) {
+            Box(
+                Modifier
+                    .fillMaxWidth(item.progress)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(style.accent),
+            )
         }
     }
 }

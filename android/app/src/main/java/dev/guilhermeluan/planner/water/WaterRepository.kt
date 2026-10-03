@@ -15,7 +15,13 @@ import java.time.LocalDate
 /** Consumo de água do Dia contra a Meta de água vigente naquele Dia. */
 data class WaterDay(val day: LocalDate, val consumedMl: Int, val goalMl: Int) {
     val goalMet: Boolean get() = consumedMl >= goalMl
+
+    /** Fração da meta já bebida, de 0 a 1. */
+    val progress: Float get() = waterProgress(consumedMl, goalMl)
 }
+
+fun waterProgress(consumedMl: Int, goalMl: Int): Float =
+    if (goalMl > 0) (consumedMl.toFloat() / goalMl).coerceIn(0f, 1f) else 0f
 
 class WaterRepository(
     private val database: PlannerDatabase,

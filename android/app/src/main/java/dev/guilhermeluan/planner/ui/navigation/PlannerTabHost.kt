@@ -18,7 +18,7 @@ import androidx.compose.foundation.background
 
 @Composable
 fun PlannerTabHost(
-    today: @Composable () -> Unit,
+    today: @Composable (openTab: (PlannerTab) -> Unit) -> Unit,
     water: @Composable () -> Unit,
     you: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -29,7 +29,7 @@ fun PlannerTabHost(
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.weight(1f)) {
             when (selected) {
-                PlannerTab.Today -> today()
+                PlannerTab.Today -> today { selected = it }
                 PlannerTab.Medicines -> medicines?.invoke() ?: EmptyTabScreen(
                     tab = PlannerTab.Medicines,
                     title = "Nenhum remédio ainda",

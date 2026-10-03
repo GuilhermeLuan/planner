@@ -65,6 +65,8 @@ import java.time.format.TextStyle
 data class WaterUiState(
     val day: WaterDay,
     val week: List<WaterDay> = emptyList(),
+    /** O Dia selecionado na aba Hoje (hoje, até outro ser escolhido); só alimenta o resumo "Seu dia". */
+    val viewedDay: WaterDay = day,
 )
 
 private val HeaderTitleInk = Color(0xFFFFF4F8)
@@ -254,7 +256,7 @@ private fun WeekCard(week: List<WaterDay>, today: LocalDate) {
 @Composable
 private fun WeekBar(day: WaterDay, isToday: Boolean) {
     val palette = PlannerExtras.palette
-    val progress = (day.consumedMl.toFloat() / day.goalMl).coerceIn(0f, 1f)
+    val progress = day.progress
     val fill = when {
         day.goalMet -> palette.waterLavender
         isToday -> WaveFrontTop
@@ -291,7 +293,7 @@ private fun WeekBar(day: WaterDay, isToday: Boolean) {
 /** Copo redondo que enche em onda conforme o Consumo se aproxima da meta. */
 @Composable
 fun WaterCup(consumedMl: Int, goalMl: Int, modifier: Modifier = Modifier) {
-    val progress = (consumedMl.toFloat() / goalMl).coerceIn(0f, 1f)
+    val progress = waterProgress(consumedMl, goalMl)
     val level by animateFloatAsState(progress, tween(durationMillis = 700), label = "nível do copo")
     // O texto de baixo fica branco quando a água já o cobre, como no Figma.
     val labelUnderWater = level >= 0.47f

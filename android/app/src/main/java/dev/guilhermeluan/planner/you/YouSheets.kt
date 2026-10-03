@@ -33,6 +33,7 @@ import dev.guilhermeluan.planner.ui.components.PlannerFormSheet
 import dev.guilhermeluan.planner.ui.components.PlannerPrimaryButton
 import dev.guilhermeluan.planner.ui.components.formFieldColors
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
+import dev.guilhermeluan.planner.ui.theme.plannerTones
 
 @Composable
 private fun SheetColumn(title: String, content: @Composable () -> Unit) {
@@ -148,7 +149,7 @@ private fun ArchivedGroup(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
                     .background(palette.surface)
-                    .border(1.dp, youTones.cardLine, RoundedCornerShape(20.dp))
+                    .border(1.dp, plannerTones.cardLine, RoundedCornerShape(20.dp))
                     .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,

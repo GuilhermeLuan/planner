@@ -1,6 +1,9 @@
 package dev.guilhermeluan.planner.ui.navigation
 
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
@@ -96,6 +99,47 @@ class PlannerTabHostTest {
 
         composeRule.onNodeWithTag("tab-remedios").performClick()
 
+        composeRule.onNodeWithText("conteúdo dos remédios").assertIsDisplayed()
+    }
+
+    @Test
+    fun todayContentCanOpenAnotherTab() {
+        composeRule.setContent {
+            PlannerTheme {
+                PlannerTabHost(
+                    today = { openTab ->
+                        Text("conteúdo do dia", Modifier.clickable { openTab(PlannerTab.Water) }.testTag("go-water"))
+                    },
+                    water = { Text("conteúdo da água") },
+                    you = { Text("conteúdo dos ajustes") },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("go-water").performClick()
+
+        composeRule.onNodeWithTag("tab-agua").assertIsSelected()
+        composeRule.onNodeWithText("conteúdo da água").assertIsDisplayed()
+    }
+
+    @Test
+    fun todayContentCanOpenTheMedicinesTab() {
+        composeRule.setContent {
+            PlannerTheme {
+                PlannerTabHost(
+                    today = { openTab ->
+                        Text("conteúdo do dia", Modifier.clickable { openTab(PlannerTab.Medicines) }.testTag("go-medicines"))
+                    },
+                    water = { Text("conteúdo da água") },
+                    you = { Text("conteúdo dos ajustes") },
+                    medicines = { Text("conteúdo dos remédios") },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("go-medicines").performClick()
+
+        composeRule.onNodeWithTag("tab-remedios").assertIsSelected()
         composeRule.onNodeWithText("conteúdo dos remédios").assertIsDisplayed()
     }
 }
