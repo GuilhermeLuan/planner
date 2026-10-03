@@ -11,7 +11,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.Clock
@@ -24,12 +26,14 @@ class WaterViewModel(
 ) : ViewModel() {
     // A aba Água registra só no dia de hoje, no Fuso da Conta.
     private val today = MutableStateFlow(LocalDate.now(clock))
+    private val viewed = MutableStateFlow<LocalDate?>(null)
     private val _uiState = MutableStateFlow(WaterUiState(WaterDay(LocalDate.now(clock), 0, WaterRepository.DEFAULT_GOAL_ML)))
     val uiState: StateFlow<WaterUiState> = _uiState.asStateFlow()
 
     private var accountId: String? = null
     private var zone: ZoneId = ZoneId.systemDefault()
     private var observeJob: Job? = null
+    private var viewedJob: Job? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun bind(localPlanner: LocalPlanner) {
@@ -46,7 +50,13 @@ class WaterViewModel(
                         WaterUiState(week.single { it.day == day }, week)
                     }
                 }
-                .collect { _uiState.value = it }
+                .collect { state -> _uiState.update { state.copy(viewedDay = it.viewedDay) } }
+        }
+        viewedJob?.cancel()
+        viewedJob = viewModelScope.launch {
+            combine(today, viewed) { todayDay, viewedDay -> viewedDay ?: todayDay }
+                .flatMapLatest { day -> repository.observeDay(account, day) }
+                .collect { water -> _uiState.update { it.copy(viewedDay = water) } }
         }
     }
 
@@ -59,6 +69,11 @@ class WaterViewModel(
     /** Reavalia o dia de hoje, para a aba virar de Dia à meia-noite. */
     fun refreshToday() {
         today.value = LocalDate.now(clock.withZone(zone))
+    }
+
+    /** O resumo "Seu dia" da aba Hoje acompanha o Dia selecionado; registrar continua só em hoje. */
+    fun viewDay(day: LocalDate) {
+        viewed.value = day
     }
 
     fun add(ml: Int) = change { account -> repository.add(account, today.value, ml) }

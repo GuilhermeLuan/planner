@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.guilhermeluan.planner.day.DayScreen
+import dev.guilhermeluan.planner.day.DaySummary
+import dev.guilhermeluan.planner.ui.navigation.PlannerTab
 import dev.guilhermeluan.planner.day.DayViewModel
 import dev.guilhermeluan.planner.medicines.MedicinesScreen
 import dev.guilhermeluan.planner.medicines.MedicinesViewModel
@@ -143,7 +145,16 @@ private fun PlannerApp(
                 youViewModel.setNotificationsEnabled(NotificationPermission.areEnabled(context))
                 onPauseOrDispose {}
             }
-            LaunchedEffect(dayState.selectedDay) { medicinesViewModel.selectDay(dayState.selectedDay) }
+            LaunchedEffect(dayState.selectedDay) {
+                medicinesViewModel.selectDay(dayState.selectedDay)
+                waterViewModel.viewDay(dayState.selectedDay)
+            }
+            // Durante a troca de Dia, dados do Dia anterior ainda podem estar no estado; não entram no resumo.
+            val daySummary = DaySummary.of(
+                routines = dayState.plan.routines,
+                water = waterState.viewedDay.takeIf { it.day == dayState.selectedDay },
+                doses = medicinesState.doses.filter { it.day == dayState.selectedDay },
+            )
             val accountTimezone = localPlanner.account.timezone
             val zone = ZoneId.of(accountTimezone)
             val clockNow by produceState(ZonedDateTime.now(Clock.systemUTC().withZone(zone)), zone) {
@@ -155,7 +166,7 @@ private fun PlannerApp(
             val greetingTime = clockNow.toLocalTime()
             LaunchedEffect(clockNow.toLocalDate()) { waterViewModel.refreshToday() }
             PlannerTabHost(
-                today = {
+                today = { openTab ->
                     DayScreen(
                         state = dayState,
                         onSelectDay = dayViewModel::selectDay,
@@ -167,6 +178,9 @@ private fun PlannerApp(
                         onRescheduleTask = dayViewModel::rescheduleTask,
                         onArchiveTask = dayViewModel::archiveTask,
                         onRestoreTask = dayViewModel::restoreTask,
+                        summary = daySummary,
+                        onOpenWater = { openTab(PlannerTab.Water) },
+                        onOpenMedicines = { openTab(PlannerTab.Medicines) },
                         userName = localPlanner.account.username,
                         now = greetingTime,
                     )

@@ -136,4 +136,26 @@ class WaterViewModelTest {
         withTimeout(5_000) { viewModel.uiState.first { it.day.day == october2 && it.day.consumedMl == 200 } }
         assertEquals(0, repository.observeDay(account.id, october1).first().consumedMl)
     }
+
+    @Test
+    fun viewedDayFollowsTheSelectedDayWhileTodayStaysTheTabDay() = runBlocking {
+        repository.add(account.id, october1, 600)
+        repository.add(account.id, september30, 1500)
+        val viewModel = boundViewModel()
+
+        viewModel.viewDay(september30)
+
+        val state = withTimeout(5_000) { viewModel.uiState.first { it.viewedDay.day == september30 && it.viewedDay.consumedMl == 1500 } }
+        assertEquals(WaterDay(october1, 600, 2000), withTimeout(5_000) { viewModel.uiState.first { it.day.consumedMl == 600 } }.day)
+        assertEquals(1500, state.viewedDay.consumedMl)
+    }
+
+    @Test
+    fun viewedDayStartsOnToday() = runBlocking {
+        repository.add(account.id, october1, 600)
+
+        val state = withTimeout(5_000) { boundViewModel().uiState.first { it.viewedDay.consumedMl == 600 } }
+
+        assertEquals(october1, state.viewedDay.day)
+    }
 }

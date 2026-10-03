@@ -22,7 +22,7 @@ object WaterText {
     /** Rótulo curto das sugestões de meta ("2,5 L"). */
     fun shortLiters(ml: Int): String = "${decimalLiters(ml)} L"
 
-    private fun decimalLiters(ml: Int): String =
+    fun decimalLiters(ml: Int): String =
         NumberFormat.getNumberInstance(PtBr).apply { maximumFractionDigits = 2 }.format(ml / 1000.0)
 
     fun remaining(consumedMl: Int, goalMl: Int): String {

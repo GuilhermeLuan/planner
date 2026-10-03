@@ -1,6 +1,9 @@
 package dev.guilhermeluan.planner.day
 
 import dev.guilhermeluan.planner.ui.components.PlannerScene
+import dev.guilhermeluan.planner.you.youTones
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.graphics.luminance
 import dev.guilhermeluan.planner.ui.components.SceneColors
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
@@ -97,6 +100,9 @@ fun DayScreen(
     onRescheduleTask: (String, LocalDate) -> Unit = { _, _ -> },
     onArchiveTask: (String) -> Unit = {},
     onRestoreTask: (String) -> Unit = {},
+    summary: DaySummary = DaySummary.Empty,
+    onOpenWater: () -> Unit = {},
+    onOpenMedicines: () -> Unit = {},
     userName: String = "",
     now: LocalTime = LocalTime.now(),
     modifier: Modifier = Modifier,
@@ -137,6 +143,11 @@ fun DayScreen(
                         markedDays = state.markedDays,
                         onSelectDay = onSelectDay,
                     )
+                }
+                item {
+                    DaySection(title = "Seu dia") {
+                        DaySummaryRow(summary, onOpenWater, onOpenMedicines)
+                    }
                 }
                 item {
                     DaySection(
@@ -404,6 +415,71 @@ private fun DayRibbon(
                     Spacer(Modifier.size(4.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DaySummaryRow(
+    summary: DaySummary,
+    onOpenWater: () -> Unit,
+    onOpenMedicines: () -> Unit,
+) {
+    val palette = PlannerExtras.palette
+    val tones = youTones
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    Row(
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        SummaryTile("summary-routines", "Rotinas", summary.routines, tones.routineTile, palette.raspberry, Modifier.weight(1f))
+        SummaryTile(
+            "summary-water", "Água", summary.water, tones.waterTile, palette.waterLavender, Modifier.weight(1f),
+            onClick = onOpenWater,
+        )
+        SummaryTile(
+            "summary-medicines", "Remédios", summary.medicines, tones.doseTile,
+            if (dark) tones.doseInk else Color(0xFFB5603A), Modifier.weight(1f),
+            onClick = onOpenMedicines,
+        )
+    }
+}
+
+@Composable
+private fun SummaryTile(
+    tag: String,
+    label: String,
+    item: SummaryItem,
+    tile: Color,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = modifier
+            .testTag(tag)
+            .clip(shape)
+            .background(tile)
+            .let { if (onClick != null) it.clickable(role = Role.Button, onClick = onClick) else it }
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp), color = accent)
+        Text(
+            item.value,
+            style = MaterialTheme.typography.headlineSmall.copy(fontSize = 16.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+        Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(PlannerExtras.palette.surface)) {
+            Box(
+                Modifier
+                    .fillMaxWidth(item.progress.coerceIn(0f, 1f))
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(accent),
+            )
         }
     }
 }

@@ -65,6 +65,8 @@ import java.time.format.TextStyle
 data class WaterUiState(
     val day: WaterDay,
     val week: List<WaterDay> = emptyList(),
+    /** O Dia selecionado na aba Hoje (hoje, até outro ser escolhido); só alimenta o resumo "Seu dia". */
+    val viewedDay: WaterDay = day,
 )
 
 private val HeaderTitleInk = Color(0xFFFFF4F8)
