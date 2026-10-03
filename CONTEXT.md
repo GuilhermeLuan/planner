@@ -52,6 +52,14 @@ _Evitar_: medicamento, medicação, rotina (quando o conceito for um remédio)
 A aparição de um Remédio em um Dia e horário específicos; pode ficar pendente, ser tomada ou ser pulada, e seu estado pertence somente àquela Dose.
 _Evitar_: tomada, ocorrência (quando o conceito for de um Remédio)
 
+**Versão anterior de um Remédio**:
+O que valia no Remédio (nome, dose, horários e repetição) antes de uma edição; as Doses dos Dias anteriores à edição continuam seguindo essa versão, para editar nunca mudar o passado.
+_Evitar_: revisão, histórico de edições
+
+**Período arquivado**:
+Intervalo em que um Remédio esteve arquivado; nele não surgem Doses novas, e restaurar o Remédio não traz esse período de volta como Doses pendentes. Enquanto o Remédio segue arquivado, Doses já registradas em Dias depois do início do arquivamento ficam escondidas, e voltam ao restaurar.
+_Evitar_: pausa (pausada é um estado de Rotina)
+
 **Alarme de Dose**:
 Aviso insistente, em tela cheia e com som contínuo, que toca quando uma Dose continua pendente depois do Atraso do alarme; para quando a Dose é tomada, adiada ou pulada.
 _Evitar_: lembrete, despertador

@@ -2,6 +2,8 @@ package dev.guilhermeluan.planner.medicines
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -12,6 +14,9 @@ import androidx.compose.ui.test.performTextInput
 import dev.guilhermeluan.planner.tasks.DoseUnit
 import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.MedicineRepeat
+import dev.guilhermeluan.planner.tasks.MedicineStatus
+import dev.guilhermeluan.planner.tasks.MedicineStock
+import dev.guilhermeluan.planner.tasks.PlannerMedicine
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -183,5 +188,55 @@ class MedicineFormTest {
 
         assertEquals(60, saved?.stock)
         assertEquals(null, saved?.stockThreshold)
+    }
+
+    private val ferro = PlannerMedicine(
+        "m9", "account-1", "planner-1", "Ferro", 2, DoseUnit.TABLET,
+        setOf(LocalTime.of(7, 0), LocalTime.of(19, 30)),
+        MedicineRepeat.Weekdays(setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY)), thursday, MedicineStatus.ACTIVE,
+        stock = MedicineStock(12, 30, 5),
+    )
+
+    @Test
+    fun editingStartsFromTheCurrentMedicineAndSavesChangesBackAsADraft() {
+        var saved: MedicineDraft? = null
+        composeRule.setContent {
+            PlannerTheme { MedicineForm(initialDay = thursday, onSave = { saved = it }, medicine = ferro) }
+        }
+
+        composeRule.onNodeWithText("Editar remédio").assertIsDisplayed()
+        composeRule.onNodeWithTag("medicine-name").assertTextContains("Ferro")
+        composeRule.onNodeWithTag("medicine-name").performTextReplacement("Ferro quelato")
+        composeRule.onNodeWithTag("medicine-stock").performTextReplacement("20")
+        save()
+
+        assertEquals(
+            MedicineDraft(
+                "Ferro quelato", 2, DoseUnit.TABLET, setOf(LocalTime.of(7, 0), LocalTime.of(19, 30)),
+                MedicineRepeat.Weekdays(setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY)), thursday,
+                stock = 20, stockThreshold = 5,
+            ),
+            saved,
+        )
+    }
+
+    @Test
+    fun editingOffersToArchiveWhileCreatingDoesNot() {
+        var archived = false
+        composeRule.setContent {
+            PlannerTheme { MedicineForm(initialDay = thursday, onSave = {}, medicine = ferro, onArchive = { archived = true }) }
+        }
+
+        composeRule.onNodeWithText("Arquivar remédio").performScrollTo().performClick()
+
+        assertEquals(true, archived)
+    }
+
+    @Test
+    fun creatingShowsNoArchiveAction() {
+        show()
+
+        composeRule.onNodeWithText("Arquivar remédio").assertDoesNotExist()
+        composeRule.onNodeWithText("Novo remédio").assertIsDisplayed()
     }
 }

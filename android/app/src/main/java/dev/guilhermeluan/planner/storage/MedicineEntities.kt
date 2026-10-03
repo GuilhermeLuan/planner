@@ -91,3 +91,53 @@ data class DoseRecordEntity(
     /** Quanto do Estoque esta Dose descontou; é o que volta ao desmarcar. */
     @ColumnInfo(defaultValue = "0") val stockDeducted: Int = 0,
 )
+
+/**
+ * Versão anterior do agendamento de um Remédio, válida para os Dias antes de [until].
+ * Editar guarda aqui o que valia até então, para o passado não ser reescrito.
+ */
+@Entity(
+    tableName = "medicine_previous_versions",
+    primaryKeys = ["medicineId", "until"],
+    indices = [Index("medicineId")],
+    foreignKeys = [
+        ForeignKey(
+            entity = MedicineEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["medicineId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class MedicinePreviousVersionEntity(
+    val medicineId: String,
+    val until: String,
+    val name: String,
+    val amount: Int,
+    val unit: String,
+    val times: String,
+    val repeatKind: String,
+    val repeatWeekdays: String,
+    val startDate: String,
+    val endDate: String?,
+)
+
+/** Período em que o Remédio esteve arquivado; [archivedUntil] fica nulo enquanto ele segue arquivado. */
+@Entity(
+    tableName = "medicine_archived_periods",
+    primaryKeys = ["medicineId", "archivedFrom"],
+    indices = [Index("medicineId")],
+    foreignKeys = [
+        ForeignKey(
+            entity = MedicineEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["medicineId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class MedicineArchivedPeriodEntity(
+    val medicineId: String,
+    val archivedFrom: String,
+    val archivedUntil: String?,
+)

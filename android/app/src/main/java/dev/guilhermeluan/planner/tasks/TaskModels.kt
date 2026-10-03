@@ -114,6 +114,62 @@ data class MedicineStock(val amount: Int, val capacity: Int, val threshold: Int)
     val fraction: Float get() = amount.toFloat() / maxOf(capacity, amount, 1)
 }
 
+/**
+ * Estoque informado no formulário, dado o Estoque [current] (nulo no cadastro). Sem quantidade, o Estoque
+ * é limpo. A mesma quantidade mantém a escala da barra; outra funciona como reposição e a redefine.
+ */
+fun MedicineDraft.toStock(current: MedicineStock? = null): MedicineStock? =
+    stock?.let {
+        MedicineStock(it, capacity = if (current != null && it == current.amount) current.capacity else it, threshold = stockThreshold ?: 0)
+    }
+
+/** O rascunho pronto para gravar, com o nome aparado; falha com [IllegalArgumentException] se for inválido. */
+fun MedicineDraft.validated(): MedicineDraft {
+    val trimmed = name.trim()
+    require(trimmed.isNotEmpty()) { "O Remédio precisa de um nome" }
+    require(amount > 0) { "A dose precisa de uma quantidade" }
+    require(times.isNotEmpty()) { "Escolha ao menos um horário" }
+    when (repeat) {
+        MedicineRepeat.Daily -> Unit
+        is MedicineRepeat.Weekdays -> require(repeat.days.isNotEmpty()) { "Escolha ao menos um dia da semana" }
+        is MedicineRepeat.Period -> require(!repeat.end.isBefore(repeat.start)) { "O período termina antes de começar" }
+    }
+    return copy(name = trimmed)
+}
+
+/** Agendamento de um Remédio que valia nos Dias antes de [until]. */
+data class MedicinePreviousVersion(
+    val until: LocalDate,
+    val name: String,
+    val amount: Int,
+    val unit: DoseUnit,
+    val times: Set<LocalTime>,
+    val repeat: MedicineRepeat,
+    val startDate: LocalDate,
+) {
+    fun applyTo(medicine: PlannerMedicine) = medicine.copy(
+        name = name, amount = amount, unit = unit, times = times, repeat = repeat, startDate = startDate,
+    )
+}
+
+/** Período, a partir de [from] (inclusive) até [until] (exclusive, nulo se segue aberto), em que o Remédio esteve arquivado. */
+data class MedicineArchivedPeriod(val from: LocalDate, val until: LocalDate?) {
+    fun covers(day: LocalDate) = !day.isBefore(from) && (until == null || day.isBefore(until))
+}
+
+/**
+ * Primeiro Dia em que vale uma edição feita em [today]. Se já há Dose registrada hoje ou depois, a edição
+ * começa no Dia seguinte à última delas, para nenhuma Dose registrada mudar nem aparecer em duplicidade.
+ */
+fun editEffectiveFrom(today: LocalDate, lastRegisteredDay: LocalDate?): LocalDate =
+    lastRegisteredDay?.plusDays(1)?.takeIf { it.isAfter(today) } ?: today
+
+/** O Remédio como era em [day]: a versão anterior mais próxima que ainda vale para o Dia, ou ele mesmo. */
+fun PlannerMedicine.versionOn(day: LocalDate, previousVersions: List<MedicinePreviousVersion>): PlannerMedicine =
+    previousVersions.filter { day.isBefore(it.until) }.minByOrNull { it.until }
+        ?.applyTo(this)
+        ?: this
+
 data class MedicineDraft(
     val name: String,
     val amount: Int,
