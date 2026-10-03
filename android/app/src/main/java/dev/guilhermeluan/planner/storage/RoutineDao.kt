@@ -37,4 +37,9 @@ abstract class RoutineDao {
     @Query("SELECT * FROM routine_occurrences WHERE accountId = :accountId")
     abstract suspend fun occurrencesByAccount(accountId: String): List<RoutineOccurrenceEntity>
 
+    @Query("SELECT COUNT(*) FROM routine_occurrences WHERE accountId = :accountId AND `day` BETWEEN :from AND :to AND status = 'DONE'")
+    abstract fun observeDoneCount(accountId: String, from: String, to: String): Flow<Int>
+
+    @Query("SELECT MIN(startDate) FROM routines WHERE accountId = :accountId")
+    abstract suspend fun earliestStartDate(accountId: String): String?
 }

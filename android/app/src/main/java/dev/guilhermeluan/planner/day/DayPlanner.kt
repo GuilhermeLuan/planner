@@ -62,6 +62,8 @@ class DayPlanner(
     suspend fun createRoutine(draft: RoutineDraft): PlannerRoutine =
         repository.createRoutine(account.id, planner.id, draft)
 
+    suspend fun restoreRoutine(routineId: String): PlannerRoutine = repository.restoreRoutine(account.id, routineId)
+
     suspend fun setRoutineOccurrenceStatus(
         routineId: String,
         day: LocalDate,

@@ -26,4 +26,10 @@ interface WaterDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertGoal(goal: WaterGoalEntity)
+
+    @Query("SELECT MIN(day) FROM water_intakes WHERE accountId = :accountId")
+    suspend fun earliestIntakeDay(accountId: String): String?
+
+    @Query("SELECT MIN(day) FROM water_intakes WHERE accountId = :accountId")
+    fun observeEarliestIntakeDay(accountId: String): Flow<String?>
 }

@@ -159,6 +159,9 @@ abstract class MedicineDao {
     @Query("SELECT * FROM medicines WHERE accountId = :accountId")
     abstract fun observeMedicines(accountId: String): Flow<List<MedicineEntity>>
 
+    @Query("SELECT MIN(startDate) FROM medicines WHERE accountId = :accountId")
+    abstract suspend fun earliestStartDate(accountId: String): String?
+
     @Query("SELECT * FROM medicines WHERE accountId = :accountId AND id = :medicineId")
     abstract suspend fun medicine(accountId: String, medicineId: String): MedicineEntity?
 
@@ -172,6 +175,9 @@ abstract class MedicineDao {
 
     @Query("SELECT * FROM dose_records WHERE accountId = :accountId AND `day` = :day")
     abstract fun observeDoseRecords(accountId: String, day: String): Flow<List<DoseRecordEntity>>
+
+    @Query("SELECT * FROM dose_records WHERE accountId = :accountId AND `day` BETWEEN :from AND :to")
+    abstract fun observeDoseRecordsBetween(accountId: String, from: String, to: String): Flow<List<DoseRecordEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertDoseSnooze(snooze: DoseSnoozeEntity)
