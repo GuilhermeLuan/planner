@@ -17,8 +17,10 @@ import androidx.room.RoomDatabase
         MedicinePreviousVersionEntity::class,
         MedicineArchivedPeriodEntity::class,
         DoseSnoozeEntity::class,
+        WaterIntakeEntity::class,
+        WaterGoalEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
@@ -26,6 +28,7 @@ abstract class PlannerDatabase : RoomDatabase() {
     abstract fun plannerDao(): PlannerDao
     abstract fun routineDao(): RoutineDao
     abstract fun medicineDao(): MedicineDao
+    abstract fun waterDao(): WaterDao
 
     companion object {
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
@@ -177,6 +180,30 @@ abstract class PlannerDatabase : RoomDatabase() {
                     )""",
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_dose_snoozes_accountId_day ON dose_snoozes(accountId, day)")
+            }
+        }
+
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS water_goals (
+                        accountId TEXT NOT NULL,
+                        validFrom TEXT NOT NULL,
+                        goalMl INTEGER NOT NULL,
+                        PRIMARY KEY(accountId, validFrom),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS water_intakes (
+                        accountId TEXT NOT NULL,
+                        day TEXT NOT NULL,
+                        totalMl INTEGER NOT NULL,
+                        updatedAt TEXT NOT NULL,
+                        PRIMARY KEY(accountId, day),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
             }
         }
     }

@@ -42,11 +42,14 @@ import dev.guilhermeluan.planner.session.PlannerAppUiState
 import dev.guilhermeluan.planner.session.PlannerViewModel
 import dev.guilhermeluan.planner.ui.navigation.PlannerTabHost
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
+import dev.guilhermeluan.planner.water.WaterScreen
+import dev.guilhermeluan.planner.water.WaterViewModel
 
 class MainActivity : ComponentActivity() {
     private val viewModel: PlannerViewModel by viewModels { PlannerViewModel.Factory(application as PlannerApplication) }
     private val dayViewModel: DayViewModel by viewModels { DayViewModel.Factory(application as PlannerApplication) }
     private val medicinesViewModel: MedicinesViewModel by viewModels { MedicinesViewModel.Factory(application as PlannerApplication) }
+    private val waterViewModel: WaterViewModel by viewModels { WaterViewModel.Factory(application as PlannerApplication) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,7 +57,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlannerTheme {
                 NotificationPermissionRequester {
-                    PlannerApp(viewModel, dayViewModel, medicinesViewModel)
+                    PlannerApp(viewModel, dayViewModel, medicinesViewModel, waterViewModel)
                 }
             }
         }
@@ -76,10 +79,16 @@ private fun NotificationPermissionRequester(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, medicinesViewModel: MedicinesViewModel) {
+private fun PlannerApp(
+    viewModel: PlannerViewModel,
+    dayViewModel: DayViewModel,
+    medicinesViewModel: MedicinesViewModel,
+    waterViewModel: WaterViewModel,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dayState by dayViewModel.uiState.collectAsStateWithLifecycle()
     val medicinesState by medicinesViewModel.uiState.collectAsStateWithLifecycle()
+    val waterState by waterViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -119,6 +128,7 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, 
             LaunchedEffect(localPlanner.account.id, localPlanner.planner.id) {
                 dayViewModel.bind(localPlanner)
                 medicinesViewModel.bind(localPlanner)
+                waterViewModel.bind(localPlanner)
             }
             LaunchedEffect(dayState.selectedDay) { medicinesViewModel.selectDay(dayState.selectedDay) }
             val accountTimezone = localPlanner.account.timezone
@@ -130,6 +140,7 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, 
                 }
             }
             val greetingTime = clockNow.toLocalTime()
+            LaunchedEffect(clockNow.toLocalDate()) { waterViewModel.refreshToday() }
             PlannerTabHost(
                 today = {
                     DayScreen(
@@ -160,6 +171,14 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, 
                         onRestoreMedicine = medicinesViewModel::restoreMedicine,
                     )
                 },
+                water = {
+                    WaterScreen(
+                        state = waterState,
+                        onAdd = waterViewModel::add,
+                        onAdjustTotal = waterViewModel::adjustTotal,
+                        onSetGoal = waterViewModel::setGoal,
+                    )
+                },
                 you = {
                     AccountSettingsScreen(
                         currentName = localPlanner.account.username,
@@ -169,6 +188,7 @@ private fun PlannerApp(viewModel: PlannerViewModel, dayViewModel: DayViewModel, 
                             viewModel.saveTimezone(it)
                             dayViewModel.updateTimezone(it)
                             medicinesViewModel.updateTimezone(it)
+                            waterViewModel.updateTimezone(it)
                         },
                         onExportBackup = { exportLauncher.launch("planner-backup.json") },
                     )

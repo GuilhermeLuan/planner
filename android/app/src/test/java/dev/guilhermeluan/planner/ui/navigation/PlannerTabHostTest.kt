@@ -25,6 +25,7 @@ class PlannerTabHostTest {
         PlannerTheme {
             PlannerTabHost(
                 today = { Text("conteúdo do dia") },
+                water = { Text("conteúdo da água") },
                 you = { Text("conteúdo dos ajustes") },
             )
         }
@@ -60,13 +61,13 @@ class PlannerTabHostTest {
     }
 
     @Test
-    fun waterTabShowsEmptyState() {
+    fun waterTabShowsTheProvidedContent() {
         setHost()
 
         composeRule.onNodeWithTag("tab-agua").performClick()
 
-        composeRule.onNodeWithTag("empty-agua").assertIsDisplayed()
-        composeRule.onNodeWithText("Comece a contar sua água").assertIsDisplayed()
+        composeRule.onNodeWithTag("tab-agua").assertIsSelected()
+        composeRule.onNodeWithText("conteúdo da água").assertIsDisplayed()
     }
 
     @Test
@@ -86,6 +87,7 @@ class PlannerTabHostTest {
             PlannerTheme {
                 PlannerTabHost(
                     today = { Text("conteúdo do dia") },
+                    water = { Text("conteúdo da água") },
                     you = { Text("conteúdo dos ajustes") },
                     medicines = { Text("conteúdo dos remédios") },
                 )

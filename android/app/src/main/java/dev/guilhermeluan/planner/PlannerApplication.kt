@@ -14,6 +14,7 @@ import dev.guilhermeluan.planner.session.LegacyRemoteCleanup
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.tasks.IdGenerator
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
+import dev.guilhermeluan.planner.water.WaterRepository
 import java.time.Clock
 import java.time.ZoneId
 import java.util.UUID
@@ -22,7 +23,7 @@ class PlannerApplication : Application() {
     val database: PlannerDatabase by lazy {
         Room.databaseBuilder(this, PlannerDatabase::class.java, "planner.db")
             .addMigrations(PlannerDatabase.MIGRATION_1_2)
-            .addMigrations(PlannerDatabase.MIGRATION_2_3, PlannerDatabase.MIGRATION_3_4, PlannerDatabase.MIGRATION_4_5, PlannerDatabase.MIGRATION_5_6, PlannerDatabase.MIGRATION_6_7)
+            .addMigrations(PlannerDatabase.MIGRATION_2_3, PlannerDatabase.MIGRATION_3_4, PlannerDatabase.MIGRATION_4_5, PlannerDatabase.MIGRATION_5_6, PlannerDatabase.MIGRATION_6_7, PlannerDatabase.MIGRATION_7_8)
             .build()
     }
     val localPlannerRepository by lazy { LocalPlannerRepository(database) }
@@ -42,6 +43,7 @@ class PlannerApplication : Application() {
         val local = localPlannerRepository.restorePlanner() ?: return
         medicineReminders.applyAction(local.account.id, local.account.timezone, key, action)
     }
+    val waterRepository by lazy { WaterRepository(database, Clock.systemUTC()) }
     val accountSettingsRepository by lazy { AccountSettingsRepository(database) }
     val backupExporter by lazy { BackupExporter(database, Clock.systemUTC()) }
     val migrationToLocal by lazy {
