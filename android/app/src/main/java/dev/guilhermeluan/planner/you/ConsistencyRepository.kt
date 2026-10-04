@@ -2,6 +2,7 @@ package dev.guilhermeluan.planner.you
 
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.storage.SessionMetadataEntity
+import dev.guilhermeluan.planner.tasks.PlannedDose
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import dev.guilhermeluan.planner.water.WaterRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,9 +33,8 @@ class ConsistencyRepository(
             water.observeWeek(accountId, from..today).map { Consistency.waterStreak(it, today) }
         }
         val onTimePercent = planner.observeDosesBetween(accountId, month.atDay(1)..today).map { doses ->
-            // TODO(#27): com o Alarme de Dose no Remédio, passar o Atraso do alarme de cada Dose no lugar de null.
-            // Até lá, "no horário" é só a tolerância de 30 min depois do Lembrete.
-            DoseTimeliness.onTimePercent(doses, now, zone) { null }
+            // "No horário" é até o Alarme de Dose; sem alarme, a tolerância de 30 min depois do Lembrete.
+            DoseTimeliness.onTimePercent(doses, now, zone, PlannedDose::alarmDelay)
         }
         val routinesDone = database.routineDao()
             .observeDoneCount(accountId, month.atDay(1).toString(), month.atEndOfMonth().toString())

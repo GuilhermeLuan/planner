@@ -136,6 +136,22 @@ class ConsistencyRepositoryTest {
     }
 
     @Test
+    fun aDoseTakenWithinTheAlarmDelayCountsAsOnTimeForAMedicineWithAlarm() = runTest {
+        fun medicine(name: String, alarm: Int?) = MedicineDraft(
+            name, 1, DoseUnit.TABLET, setOf(LocalTime.of(8, 0)),
+            MedicineRepeat.Period(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1)), LocalDate.of(2026, 9, 1),
+            alarmDelayMinutes = alarm,
+        )
+        val withAlarm = planner.createMedicine(account.id, plannerRef.id, medicine("Magnésio", 60))
+        val withoutAlarm = planner.createMedicine(account.id, plannerRef.id, medicine("Vitamina D", null))
+        // 08:45: dentro da hora do alarme, mas passou dos 30 minutos de tolerância sem alarme.
+        take(withAlarm.id, "2026-09-01", at = "2026-09-01T11:45:00Z")
+        take(withoutAlarm.id, "2026-09-01", at = "2026-09-01T11:45:00Z")
+
+        assertEquals(50, current().onTimeDosePercent)
+    }
+
+    @Test
     fun withoutDosesThereIsNoPercentage() = runTest {
         assertNull(current().onTimeDosePercent)
     }

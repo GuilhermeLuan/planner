@@ -1,5 +1,6 @@
 package dev.guilhermeluan.planner.tasks
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -110,6 +111,8 @@ data class PlannerMedicine(
     val startDate: LocalDate,
     val status: MedicineStatus,
     val stock: MedicineStock? = null,
+    /** Atraso do alarme; nulo quando o Remédio não tem Alarme de Dose. */
+    val alarmDelay: Duration? = null,
 )
 
 /**
@@ -145,6 +148,9 @@ fun MedicineDraft.validated(): MedicineDraft {
     require(trimmed.isNotEmpty()) { "O Remédio precisa de um nome" }
     require(amount > 0) { "A dose precisa de uma quantidade" }
     require(times.isNotEmpty()) { "Escolha ao menos um horário" }
+    require(alarmDelayMinutes == null || alarmDelayMinutes in AlarmDelay.VALID_MINUTES) {
+        "O atraso do alarme vai de ${AlarmDelay.VALID_MINUTES.first} a ${AlarmDelay.VALID_MINUTES.last} minutos"
+    }
     when (repeat) {
         MedicineRepeat.Daily -> Unit
         is MedicineRepeat.Weekdays -> require(repeat.days.isNotEmpty()) { "Escolha ao menos um dia da semana" }
@@ -197,7 +203,33 @@ data class MedicineDraft(
     val stockThreshold: Int? = null,
     /** Estoque que o formulário de edição mostrava ao abrir; nulo no cadastro. */
     val stockAsShown: Int? = null,
-)
+    /** Atraso do alarme em minutos (veja [AlarmDelay]); nulo deixa o Alarme de Dose desligado. */
+    val alarmDelayMinutes: Int? = null,
+) {
+    fun alarmDelay(): Duration? = alarmDelayMinutes?.let { Duration.ofMinutes(it.toLong()) }
+}
+
+/** Atraso do alarme: as opções rápidas e o intervalo aceito em "Outro". */
+object AlarmDelay {
+    val QUICK_MINUTES = listOf(10, 15, 30, 60)
+    const val DEFAULT_MINUTES = 30
+    val VALID_MINUTES = 5..180
+
+    /** Como o atraso aparece nas opções e no cartão do Remédio: "30 min", ou "1 hora" para 60. */
+    fun label(minutes: Int): String = if (minutes == 60) "1 hora" else "$minutes min"
+}
+
+/** Identifica uma Dose: o Remédio, o Dia e o horário. Na forma de texto, é a chave dos agendamentos. */
+data class DoseKey(val medicineId: String, val day: LocalDate, val time: LocalTime) {
+    override fun toString() = "$medicineId|$day|$time"
+
+    companion object {
+        fun parse(text: String): DoseKey {
+            val (medicineId, day, time) = text.split('|')
+            return DoseKey(medicineId, LocalDate.parse(day), LocalTime.parse(time))
+        }
+    }
+}
 
 data class PlannedDose(
     val medicineId: String,
@@ -210,4 +242,10 @@ data class PlannedDose(
     val takenAt: Instant? = null,
     /** Quando o Lembrete da Dose volta, se ela foi adiada. */
     val snoozedUntil: Instant? = null,
-)
+    /** Atraso do alarme do Remédio; nulo se ele não tem Alarme de Dose. */
+    val alarmDelay: Duration? = null,
+    /** Quando o Alarme de Dose volta, se ele foi adiado. */
+    val alarmSnoozedUntil: Instant? = null,
+) {
+    val key: DoseKey get() = DoseKey(medicineId, day, time)
+}

@@ -141,6 +141,8 @@ abstract class MedicineDao {
         if (next == DoseStatus.PENDING) {
             deleteDoseRecord(medicineId, day, time)
         } else {
+            // Registrada, a Dose não tem mais alarme a adiar; desmarcá-la depois volta ao horário + atraso.
+            deleteDoseAlarmSnooze(medicineId, day, time)
             upsertDoseRecord(
                 DoseRecordEntity(
                     medicineId = medicineId,
@@ -181,6 +183,15 @@ abstract class MedicineDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertDoseSnooze(snooze: DoseSnoozeEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertDoseAlarmSnooze(snooze: DoseAlarmSnoozeEntity)
+
+    @Query("DELETE FROM dose_alarm_snoozes WHERE medicineId = :medicineId AND `day` = :day AND time = :time")
+    abstract suspend fun deleteDoseAlarmSnooze(medicineId: String, day: String, time: String)
+
+    @Query("SELECT * FROM dose_alarm_snoozes WHERE accountId = :accountId AND `day` = :day")
+    abstract fun observeDoseAlarmSnoozes(accountId: String, day: String): Flow<List<DoseAlarmSnoozeEntity>>
 
     @Query("SELECT * FROM dose_snoozes WHERE accountId = :accountId AND `day` = :day")
     abstract fun observeDoseSnoozes(accountId: String, day: String): Flow<List<DoseSnoozeEntity>>

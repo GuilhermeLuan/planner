@@ -17,10 +17,11 @@ import androidx.room.RoomDatabase
         MedicinePreviousVersionEntity::class,
         MedicineArchivedPeriodEntity::class,
         DoseSnoozeEntity::class,
+        DoseAlarmSnoozeEntity::class,
         WaterIntakeEntity::class,
         WaterGoalEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
@@ -204,6 +205,24 @@ abstract class PlannerDatabase : RoomDatabase() {
                         FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
                     )""",
                 )
+            }
+        }
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE medicines ADD COLUMN alarmDelayMinutes INTEGER")
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS dose_alarm_snoozes (
+                        medicineId TEXT NOT NULL,
+                        day TEXT NOT NULL,
+                        time TEXT NOT NULL,
+                        accountId TEXT NOT NULL,
+                        snoozedUntil TEXT NOT NULL,
+                        PRIMARY KEY(medicineId, day, time),
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(medicineId) REFERENCES medicines(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_dose_alarm_snoozes_accountId_day ON dose_alarm_snoozes(accountId, day)")
             }
         }
     }

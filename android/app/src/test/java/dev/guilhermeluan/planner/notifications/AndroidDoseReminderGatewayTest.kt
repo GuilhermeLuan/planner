@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import dev.guilhermeluan.planner.tasks.DoseKey
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,7 +26,7 @@ class AndroidDoseReminderGatewayTest {
     private val second = reminder("BB")
 
     private fun reminder(medicineId: String) = DoseReminder(
-        medicineId, LocalDate.of(2026, 10, 1), LocalTime.of(13, 0), "Vitamina D", "1 cápsula",
+        DoseKey(medicineId, LocalDate.of(2026, 10, 1), LocalTime.of(13, 0)), "Vitamina D", "1 cápsula",
         Instant.parse("2099-10-01T16:00:00Z"),
     )
 

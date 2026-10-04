@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -34,21 +35,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.day.StartDatePickerDialog
 import dev.guilhermeluan.planner.day.TimePickerDialog
+import dev.guilhermeluan.planner.tasks.AlarmDelay
 import dev.guilhermeluan.planner.tasks.DoseUnit
 import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.MedicineRepeat
 import dev.guilhermeluan.planner.tasks.PlannerMedicine
 import dev.guilhermeluan.planner.tasks.editEffectiveFrom
+import dev.guilhermeluan.planner.ui.components.ClockFormatter
 import dev.guilhermeluan.planner.ui.components.FormField
 import dev.guilhermeluan.planner.ui.components.PlannerChip
 import dev.guilhermeluan.planner.ui.components.PlannerFormSheet
+import dev.guilhermeluan.planner.ui.components.PlannerSwitch
 import dev.guilhermeluan.planner.ui.components.PtBr
 import dev.guilhermeluan.planner.ui.components.formFieldColors
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
@@ -62,7 +68,7 @@ private val FirstDoseTime = LocalTime.of(8, 0)
 private val ExtraDoseTimeSuggestion = LocalTime.of(9, 0)
 
 /**
- * Formulário "Novo remédio" (tela 05 do Figma), sem alarme de dose. Com [medicine] vira "Editar remédio",
+ * Formulário "Novo remédio" (tela 05 do Figma), com o Alarme de Dose. Com [medicine] vira "Editar remédio",
  * começando dos valores atuais; [onArchive] acrescenta a ação "Arquivar remédio" e [editNotice] avisa
  * quando a edição só vale mais adiante.
  */
@@ -88,6 +94,14 @@ fun MedicineForm(
     val stockAsShown by rememberSaveable { mutableStateOf(medicine?.stock?.amount) }
     var stockThreshold by rememberSaveable { mutableStateOf(medicine?.stock?.threshold?.toString().orEmpty()) }
     var pickingTime by rememberSaveable { mutableStateOf(false) }
+    val currentAlarm = medicine?.alarmDelay?.toMinutes()?.toInt()
+    var alarmOn by rememberSaveable { mutableStateOf(currentAlarm != null) }
+    // O Atraso do alarme vem de uma opção rápida ou, com "Outro", do minuto digitado.
+    var alarmQuickMinutes by rememberSaveable { mutableStateOf(currentAlarm?.takeIf { it in AlarmDelay.QUICK_MINUTES } ?: AlarmDelay.DEFAULT_MINUTES) }
+    var alarmUsesOther by rememberSaveable { mutableStateOf(currentAlarm != null && currentAlarm !in AlarmDelay.QUICK_MINUTES) }
+    var alarmOtherText by rememberSaveable { mutableStateOf(currentAlarm?.takeIf { it !in AlarmDelay.QUICK_MINUTES }?.toString().orEmpty()) }
+    val alarmDelay = if (alarmUsesOther) alarmOtherText.toIntOrNull() else alarmQuickMinutes
+    val alarmValid = !alarmOn || alarmDelay in AlarmDelay.VALID_MINUTES
     var repeatKind by rememberSaveable {
         mutableStateOf(
             when (currentRepeat) {
@@ -233,8 +247,20 @@ fun MedicineForm(
             }
         }
 
+        AlarmCard(
+            alarmOn = alarmOn,
+            onToggle = { alarmOn = it },
+            quickMinutes = alarmQuickMinutes.takeUnless { alarmUsesOther },
+            onQuick = { alarmQuickMinutes = it; alarmUsesOther = false },
+            onOther = { alarmUsesOther = true },
+            otherText = alarmOtherText,
+            onOtherText = { alarmOtherText = it.filter(Char::isDigit).take(3) },
+            firstDoseTime = times.minOf(LocalTime::parse),
+            delayMinutes = alarmDelay?.takeIf { it in AlarmDelay.VALID_MINUTES },
+        )
+
         Button(
-            enabled = name.trim().isNotEmpty() && repeatValid,
+            enabled = name.trim().isNotEmpty() && repeatValid && alarmValid,
             onClick = {
                 val stockAmount = stock.toIntOrNull()
                 onSave(
@@ -243,6 +269,7 @@ fun MedicineForm(
                         stock = stockAmount,
                         stockThreshold = stockThreshold.toIntOrNull(),
                         stockAsShown = stockAsShown,
+                        alarmDelayMinutes = alarmDelay?.takeIf { alarmOn },
                     ),
                 )
             },
@@ -310,6 +337,106 @@ private fun StockField(
         shape = RoundedCornerShape(16.dp),
         colors = formFieldColors(),
     )
+}
+
+/** "Tocar alarme se eu esquecer": interruptor, Atraso do alarme e a prévia dos dois horários. */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun AlarmCard(
+    alarmOn: Boolean,
+    onToggle: (Boolean) -> Unit,
+    /** A opção rápida escolhida; nula quando "Outro" está escolhido. */
+    quickMinutes: Int?,
+    onQuick: (Int) -> Unit,
+    onOther: () -> Unit,
+    otherText: String,
+    onOtherText: (String) -> Unit,
+    firstDoseTime: LocalTime,
+    delayMinutes: Int?,
+) {
+    val palette = PlannerExtras.palette
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(palette.surface)
+            .border(if (alarmOn) 1.5.dp else 1.dp, if (alarmOn) MaterialTheme.colorScheme.primary else palette.line, shape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Tocar alarme se eu esquecer", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Toca com som contínuo até você marcar a dose como tomada.",
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 17.sp),
+                    color = palette.mutedInk,
+                )
+            }
+            PlannerSwitch(alarmOn, onToggle, Modifier.testTag("medicine-alarm-switch"))
+        }
+        if (alarmOn) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(palette.line))
+            Text(
+                "Tocar quanto tempo depois do lembrete",
+                style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                color = palette.secondaryInk,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AlarmDelay.QUICK_MINUTES.forEach { minutes ->
+                    PlannerChip(AlarmDelay.label(minutes), selected = quickMinutes == minutes, onClick = { onQuick(minutes) })
+                }
+                PlannerChip("Outro", selected = quickMinutes == null, onClick = onOther)
+            }
+            if (quickMinutes == null) {
+                OutlinedTextField(
+                    value = otherText,
+                    onValueChange = onOtherText,
+                    modifier = Modifier.fillMaxWidth().testTag("medicine-alarm-custom"),
+                    placeholder = { Text("De ${AlarmDelay.VALID_MINUTES.first} a ${AlarmDelay.VALID_MINUTES.last}", maxLines = 1) },
+                    suffix = { Text("min") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = formFieldColors(),
+                )
+            }
+            if (delayMinutes != null) AlarmPreview(firstDoseTime, firstDoseTime.plusMinutes(delayMinutes.toLong()))
+        }
+    }
+}
+
+@Composable
+private fun AlarmPreview(reminderAt: LocalTime, alarmAt: LocalTime) {
+    val palette = PlannerExtras.palette
+    val reminder = reminderAt.format(ClockFormatter)
+    val alarm = alarmAt.format(ClockFormatter)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("medicine-alarm-preview")
+            .clearAndSetSemantics { contentDescription = "$reminder notificação → $alarm alarme, se pendente" }
+            .clip(RoundedCornerShape(14.dp))
+            .background(palette.porcelain)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column {
+            Text(reminder, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold))
+            Text("notificação", style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp), color = palette.mutedInk)
+        }
+        Box(Modifier.weight(1f).height(2.dp).clip(RoundedCornerShape(1.dp)).background(palette.line))
+        Column {
+            Text(
+                alarm,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text("alarme, se pendente", style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp), color = palette.mutedInk)
+        }
+    }
 }
 
 private enum class PeriodEdge { START, END }

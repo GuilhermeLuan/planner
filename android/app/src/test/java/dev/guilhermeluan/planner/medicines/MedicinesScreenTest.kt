@@ -31,6 +31,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -222,6 +223,18 @@ class MedicinesScreenTest {
 
         composeRule.onNodeWithText("1x ao dia · 07:00 · seg, qui").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("2x ao dia · 09:00, 21:00 · até 08/10/2026").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun aMedicineWithAnAlarmShowsHowLongAfterTheReminderItRings() {
+        val quick = medicine("m6", "Magnésio", LocalTime.of(21, 30)).copy(alarmDelay = Duration.ofMinutes(30))
+        val hour = medicine("m7", "Zinco", LocalTime.of(20, 0)).copy(alarmDelay = Duration.ofMinutes(60))
+        val plain = medicine("m8", "Ômega", LocalTime.of(8, 0))
+        show(doses = emptyList(), medicines = listOf(quick, hour, plain))
+
+        composeRule.onNodeWithText("1x ao dia · 21:30 · alarme 30 min depois").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("1x ao dia · 20:00 · alarme 1 hora depois").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("1x ao dia · 08:00").performScrollTo().assertIsDisplayed()
     }
 
     private fun withStock(stock: Int, threshold: Int) =

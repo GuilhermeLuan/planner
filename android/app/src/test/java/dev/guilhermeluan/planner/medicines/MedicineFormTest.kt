@@ -3,7 +3,9 @@ package dev.guilhermeluan.planner.medicines
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performTextReplacement
@@ -28,6 +30,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -257,5 +260,114 @@ class MedicineFormTest {
 
         composeRule.onNodeWithText("Arquivar remédio").assertDoesNotExist()
         composeRule.onNodeWithText("Novo remédio").assertIsDisplayed()
+    }
+
+    private fun alarmSwitch() = composeRule.onNodeWithTag("medicine-alarm-switch").performScrollTo()
+
+    @Test
+    fun theAlarmStartsOffAndTheDraftHasNoAlarmDelay() {
+        var saved: MedicineDraft? = null
+        show { saved = it }
+
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        save()
+
+        assertEquals(null, saved?.alarmDelayMinutes)
+        composeRule.onNodeWithText("30 min").assertDoesNotExist()
+    }
+
+    @Test
+    fun turningTheAlarmOnDefaultsToThirtyMinutesAndPreviewsBothTimes() {
+        var saved: MedicineDraft? = null
+        show { saved = it }
+
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Magnésio")
+        alarmSwitch().performClick()
+
+        composeRule.onNodeWithTag("medicine-alarm-preview")
+            .assertContentDescriptionEquals("08:00 notificação → 08:30 alarme, se pendente")
+        save()
+        assertEquals(30, saved?.alarmDelayMinutes)
+    }
+
+    @Test
+    fun thePreviewFollowsTheChosenDelay() {
+        show()
+
+        alarmSwitch().performClick()
+        composeRule.onNodeWithText("1 hora").performScrollTo().performClick()
+
+        composeRule.onNodeWithTag("medicine-alarm-preview")
+            .assertContentDescriptionEquals("08:00 notificação → 09:00 alarme, se pendente")
+    }
+
+    @Test
+    fun otherAcceptsAnyDelayFromFiveToOneHundredEightyMinutes() {
+        var saved: MedicineDraft? = null
+        show { saved = it }
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Magnésio")
+        alarmSwitch().performClick()
+
+        composeRule.onNodeWithText("Outro").performScrollTo().performClick()
+        composeRule.onNodeWithTag("medicine-alarm-custom").performScrollTo().performTextInput("45")
+
+        composeRule.onNodeWithTag("medicine-alarm-preview")
+            .assertContentDescriptionEquals("08:00 notificação → 08:45 alarme, se pendente")
+        save()
+        assertEquals(45, saved?.alarmDelayMinutes)
+    }
+
+    @Test
+    fun saveStaysDisabledWhileTheCustomDelayIsOutsideTheAllowedRange() {
+        show()
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Magnésio")
+        alarmSwitch().performClick()
+        composeRule.onNodeWithText("Outro").performScrollTo().performClick()
+
+        listOf("4", "181", "").forEach { value ->
+            composeRule.onNodeWithTag("medicine-alarm-custom").performScrollTo().performTextReplacement(value)
+            composeRule.onNodeWithText("Salvar remédio").performScrollTo().assertIsNotEnabled()
+        }
+        composeRule.onNodeWithTag("medicine-alarm-custom").performScrollTo().performTextReplacement("180")
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().assertIsEnabled()
+    }
+
+    @Test
+    fun editingAMedicineWithAnAlarmOpensWithTheSwitchOnAndThePreviewFollowsItsFirstDoseTime() {
+        var saved: MedicineDraft? = null
+        composeRule.setContent {
+            PlannerTheme {
+                MedicineForm(initialDay = thursday, onSave = { saved = it }, medicine = ferro.copy(alarmDelay = Duration.ofMinutes(15)))
+            }
+        }
+
+        composeRule.onNodeWithTag("medicine-alarm-preview")
+            .assertContentDescriptionEquals("07:00 notificação → 07:15 alarme, se pendente")
+        save()
+        assertEquals(15, saved?.alarmDelayMinutes)
+    }
+
+    @Test
+    fun editingAMedicineWithACustomDelayOpensOnOther() {
+        composeRule.setContent {
+            PlannerTheme { MedicineForm(initialDay = thursday, onSave = {}, medicine = ferro.copy(alarmDelay = Duration.ofMinutes(45))) }
+        }
+
+        composeRule.onNodeWithTag("medicine-alarm-custom").performScrollTo().assertTextContains("45")
+    }
+
+    @Test
+    fun turningTheAlarmOffAgainClearsTheDelay() {
+        var saved: MedicineDraft? = null
+        composeRule.setContent {
+            PlannerTheme {
+                MedicineForm(initialDay = thursday, onSave = { saved = it }, medicine = ferro.copy(alarmDelay = Duration.ofMinutes(15)))
+            }
+        }
+
+        alarmSwitch().performClick()
+        save()
+
+        assertEquals(null, saved?.alarmDelayMinutes)
     }
 }

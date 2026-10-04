@@ -3,8 +3,9 @@ package dev.guilhermeluan.planner.medicines
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import dev.guilhermeluan.planner.notifications.FakeDoseAlarmGateway
 import dev.guilhermeluan.planner.notifications.FakeDoseReminderGateway
-import dev.guilhermeluan.planner.notifications.MedicineReminderCoordinator
+import dev.guilhermeluan.planner.notifications.DoseScheduleCoordinator
 import dev.guilhermeluan.planner.session.Account
 import dev.guilhermeluan.planner.session.LocalPlanner
 import dev.guilhermeluan.planner.session.Planner
@@ -44,7 +45,7 @@ import java.time.ZoneOffset
 class MedicinesViewModelTest {
     private lateinit var database: PlannerDatabase
     private lateinit var repository: RoomPlannerRepository
-    private lateinit var reminders: MedicineReminderCoordinator
+    private lateinit var reminders: DoseScheduleCoordinator
     private val gateway = FakeDoseReminderGateway()
     private val account = Account("account-1", "ana", "America/Sao_Paulo", false)
     private val planner = Planner("planner-1", account.id)
@@ -63,7 +64,7 @@ class MedicinesViewModelTest {
         ).allowMainThreadQueries().build()
         var next = 0
         repository = RoomPlannerRepository(database, { "id-${next++}" }, clock)
-        reminders = MedicineReminderCoordinator(repository, gateway, clock)
+        reminders = DoseScheduleCoordinator(repository, gateway, FakeDoseAlarmGateway(), clock)
     }
 
     private val viewModels = mutableListOf<MedicinesViewModel>()

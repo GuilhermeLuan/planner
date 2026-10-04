@@ -4,9 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.guilhermeluan.planner.PlannerApplication
-import dev.guilhermeluan.planner.notifications.DoseReminder
 import dev.guilhermeluan.planner.notifications.DoseReminderAction
-import dev.guilhermeluan.planner.notifications.MedicineReminderCoordinator
+import dev.guilhermeluan.planner.notifications.DoseScheduleCoordinator
 import dev.guilhermeluan.planner.session.LocalPlanner
 import dev.guilhermeluan.planner.tasks.DoseStatus
 import dev.guilhermeluan.planner.tasks.MedicineDraft
@@ -26,7 +25,7 @@ import java.time.ZoneId
 
 class MedicinesViewModel(
     private val repository: RoomPlannerRepository,
-    private val reminders: MedicineReminderCoordinator,
+    private val reminders: DoseScheduleCoordinator,
     private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
     private val selectedDay = MutableStateFlow(LocalDate.now(clock))
@@ -84,7 +83,7 @@ class MedicinesViewModel(
         val account = accountId ?: return
         viewModelScope.launch {
             reminders.applyAction(
-                account, zone.id, DoseReminder.keyOf(dose.medicineId, dose.day, dose.time), DoseReminderAction.SNOOZE,
+                account, zone.id, dose.key, DoseReminderAction.SNOOZE,
             )
         }
     }
@@ -123,6 +122,6 @@ class MedicinesViewModel(
     class Factory(private val application: PlannerApplication) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            MedicinesViewModel(application.medicinesRepository, application.medicineReminders) as T
+            MedicinesViewModel(application.medicinesRepository, application.doseSchedule) as T
     }
 }

@@ -40,6 +40,7 @@ data class MedicineEntity(
     val stockAmount: Int? = null,
     val stockCapacity: Int? = null,
     val stockThreshold: Int? = null,
+    val alarmDelayMinutes: Int? = null,
 )
 
 @Entity(
@@ -166,9 +167,50 @@ data class MedicineArchivedPeriodEntity(
     ],
 )
 data class DoseSnoozeEntity(
-    val medicineId: String,
+    override val medicineId: String,
     val day: String,
-    val time: String,
+    override val time: String,
     val accountId: String,
-    val snoozedUntil: String,
+    override val snoozedUntil: String,
+) : DoseSnoozeRow
+
+/**
+ * Adiamento do Alarme de Dose de uma Dose ainda pendente: o alarme volta a tocar em [snoozedUntil]. É separado do
+ * adiamento do Lembrete, que não mexe no alarme.
+ */
+@Entity(
+    tableName = "dose_alarm_snoozes",
+    primaryKeys = ["medicineId", "day", "time"],
+    indices = [Index("accountId", "day")],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = MedicineEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["medicineId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
 )
+data class DoseAlarmSnoozeEntity(
+    override val medicineId: String,
+    val day: String,
+    override val time: String,
+    val accountId: String,
+    override val snoozedUntil: String,
+) : DoseSnoozeRow
+
+/**
+ * Um adiamento gravado para uma Dose de um Dia: o do Lembrete ([DoseSnoozeEntity]) ou o do Alarme de Dose
+ * ([DoseAlarmSnoozeEntity]). As tabelas ficam separadas porque um adiamento não mexe no outro.
+ */
+interface DoseSnoozeRow {
+    val medicineId: String
+    val time: String
+    val snoozedUntil: String
+}
