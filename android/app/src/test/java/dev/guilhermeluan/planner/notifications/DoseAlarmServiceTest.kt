@@ -11,6 +11,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -73,10 +74,12 @@ class DoseAlarmServiceTest {
         if (::controller.isInitialized) controller.destroy()
         ShadowPowerManager.clearWakeLocks()
         ShadowMediaPlayer.resetStaticState()
+        restoreNotificationService()
     }
 
     @Test
     fun ringsInTheForegroundWithAFullScreenAlarmNotification() {
+        grantFullScreenIntent(true)
         withAlarmSound()
         ring(magnesium)
 
@@ -88,6 +91,22 @@ class DoseAlarmServiceTest {
         assertEquals("Hora do Magnésio", foregroundTitle)
         assertEquals("1 cápsula · lembrete às 21:30 ainda sem registro", notification.extras.getString(Notification.EXTRA_TEXT))
         assertEquals(listOf("Tomei", "Adiar 10 min", "Pular dose"), notification.actions.map { it.title.toString() })
+    }
+
+    @Test
+    fun withoutTheFullScreenPermissionTheAlarmIsAHighPriorityNotificationWithSound() {
+        grantFullScreenIntent(false)
+        withAlarmSound()
+        ring(magnesium)
+
+        val notification = service.lastForegroundNotification
+        assertEquals(Notification.CATEGORY_ALARM, notification.category)
+        assertNull("sem a permissão, a notificação não abre a tela sozinha", notification.fullScreenIntent)
+        assertEquals("o som contínuo segue no canal mudo", ALARM_CHANNEL_ID, notification.channelId)
+        assertEquals(
+            NotificationManager.IMPORTANCE_HIGH,
+            notifications.notificationChannels.single { it.id == ALARM_CHANNEL_ID }.importance,
+        )
     }
 
     @Test

@@ -9,13 +9,16 @@ import dev.guilhermeluan.planner.tasks.DoseStatus
 import dev.guilhermeluan.planner.tasks.DoseUnit
 import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.MedicineRepeat
+import dev.guilhermeluan.planner.tasks.TaskDraft
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowAlarmManager
 import org.robolectric.shadows.ShadowLooper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -119,6 +122,65 @@ class DoseReminderReceiversTest {
         // A reconciliação que segue a ação roda em segundo plano; espera ela agendar a Dose de amanhã.
         val alarms = shadowOf(app.getSystemService(AlarmManager::class.java))
         waitUntil { alarms.scheduledAlarms.isNotEmpty() }
+    }
+
+    @Test
+    fun afterARebootTheTaskRemindersAreScheduledAgain() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        runBlocking {
+            val local = app.localPlannerRepository.createPlanner("Ana", timezone)
+            app.medicinesRepository.createTask(local.account.id, local.planner.id, TaskDraft("Pagar conta", today.plusDays(1), LocalTime.of(9, 0)))
+        }
+        val alarms = shadowOf(app.getSystemService(AlarmManager::class.java))
+
+        DoseScheduleBootReceiver().onReceive(app, Intent(Intent.ACTION_BOOT_COMPLETED))
+
+        waitUntil { taskReminders(alarms).isNotEmpty() }
+        assertEquals("o Lembrete de Tarefa volta exato", ShadowAlarmManager.WINDOW_EXACT, taskReminders(alarms).single().windowLengthMs)
+    }
+
+    @Test
+    fun whenThePermissionIsBackEverythingIsRescheduledAsExact() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        createMedicine(alarmDelayMinutes = 30)
+
+        runBlocking {
+            val local = app.localPlannerRepository.restorePlanner()!!
+            app.medicinesRepository.createTask(local.account.id, local.planner.id, TaskDraft("Pagar conta", today.plusDays(1), LocalTime.of(9, 0)))
+            app.rescheduleAll()
+        }
+
+        val alarms = shadowOf(app.getSystemService(AlarmManager::class.java))
+        assertTrue("o Alarme de Dose volta", alarms.scheduledAlarms.any { it.alarmClockInfo != null })
+        assertEquals("o Lembrete de Tarefa volta exato", ShadowAlarmManager.WINDOW_EXACT, taskReminders(alarms).single().windowLengthMs)
+    }
+
+    @Test
+    fun whenThePermissionChangesTheDoseAlarmsAreScheduledAgain() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        createMedicine(alarmDelayMinutes = 30)
+        val alarms = shadowOf(app.getSystemService(AlarmManager::class.java))
+        assertTrue(alarms.scheduledAlarms.none { it.alarmClockInfo != null })
+
+        ExactAlarmPermissionReceiver().onReceive(app, Intent(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED))
+
+        waitUntil { alarms.scheduledAlarms.any { it.alarmClockInfo != null } }
+    }
+
+    @Test
+    fun theManifestDeclaresTheReceiverForThePermissionChange() {
+        val declared = app.packageManager
+            .queryBroadcastReceivers(Intent(AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED), 0)
+            .map { it.activityInfo }
+            .firstOrNull { it.name == ExactAlarmPermissionReceiver::class.java.name }
+
+        assertNotNull("o manifesto declara o receiver para a mudança de permissão", declared)
+        assertTrue(declared!!.exported)
+    }
+
+    /** Os alarmes que entregam Lembretes de Tarefa, reconhecidos pelo receiver do PendingIntent. */
+    private fun taskReminders(alarms: ShadowAlarmManager) = alarms.scheduledAlarms.filter {
+        shadowOf(it.operation).savedIntent.component?.className == PlannerReminderReceiver::class.java.name
     }
 
     private fun waitUntil(condition: () -> Boolean) {

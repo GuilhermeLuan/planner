@@ -48,7 +48,11 @@ import dev.guilhermeluan.planner.water.WaterViewModel
 import dev.guilhermeluan.planner.you.YouTab
 import dev.guilhermeluan.planner.you.YouViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import dev.guilhermeluan.planner.notifications.ExactAlarmPermission
 import dev.guilhermeluan.planner.notifications.NotificationPermission
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel: PlannerViewModel by viewModels { PlannerViewModel.Factory(application as PlannerApplication) }
@@ -141,8 +145,17 @@ private fun PlannerApp(
             }
             LaunchedEffect(localPlanner) { youViewModel.bind(localPlanner) }
             // As notificações podem ser ligadas ou desligadas fora do app; relê ao voltar para ele.
+            // A permissão de alarme exato também muda fora do app; ao voltar com ela concedida, reagenda tudo.
+            val scope = rememberCoroutineScope()
+            var exactAlarmsBefore by rememberSaveable { mutableStateOf<Boolean?>(null) }
             LifecycleResumeEffect(Unit) {
                 youViewModel.setNotificationsEnabled(NotificationPermission.areEnabled(context))
+                val exactAlarms = ExactAlarmPermission.canScheduleExactAlarms(context)
+                if (exactAlarms && exactAlarmsBefore == false) {
+                    scope.launch { (context.applicationContext as PlannerApplication).rescheduleAll() }
+                }
+                exactAlarmsBefore = exactAlarms
+                medicinesViewModel.setExactAlarmsAllowed(exactAlarms)
                 onPauseOrDispose {}
             }
             LaunchedEffect(dayState.selectedDay) {
@@ -196,6 +209,7 @@ private fun PlannerApp(
                         onEditMedicine = medicinesViewModel::editMedicine,
                         onArchiveMedicine = medicinesViewModel::archiveMedicine,
                         onRestoreMedicine = medicinesViewModel::restoreMedicine,
+                        onOpenAlarmSettings = { context.startActivity(ExactAlarmPermission.settingsIntent(context)) },
                     )
                 },
                 water = {

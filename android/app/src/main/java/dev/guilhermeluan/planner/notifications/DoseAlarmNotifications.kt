@@ -84,8 +84,9 @@ internal fun NotificationManager.notifyAlarm(key: DoseKey, notification: Notific
 }
 
 /**
- * A notificação do Alarme de Dose. Enquanto [ongoing], fica presa à tela; depois, some ao toque. Com
- * [fullScreen], abre a tela de alarme sobre o bloqueio.
+ * A notificação do Alarme de Dose. Enquanto [ongoing], fica presa à tela; depois, some ao toque. Com [fullScreen] e a
+ * permissão de tela cheia, abre a tela de alarme sobre o bloqueio; sem a permissão, fica só a notificação de alta
+ * prioridade.
  */
 internal fun alarmNotification(
     context: Context,
@@ -112,6 +113,6 @@ internal fun alarmNotification(
         .addAction(notificationAction(context, alarmActionIntent(context, alarm.key, DoseAlarmAction.TAKE), "Tomei"))
         .addAction(notificationAction(context, alarmActionIntent(context, alarm.key, DoseAlarmAction.SNOOZE), SNOOZE_LABEL))
         .addAction(notificationAction(context, alarmActionIntent(context, alarm.key, DoseAlarmAction.SKIP), "Pular dose"))
-    if (fullScreen) builder.setFullScreenIntent(screen, true)
+    if (fullScreen && ExactAlarmPermission.canUseFullScreenIntent(context)) builder.setFullScreenIntent(screen, true)
     return builder.build()
 }

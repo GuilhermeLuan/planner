@@ -5,6 +5,8 @@ import dev.guilhermeluan.planner.tasks.DoseStatus
 import dev.guilhermeluan.planner.tasks.PlannedDose
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -81,7 +83,18 @@ class DoseScheduleCoordinator(
     private val alarms: DoseAlarmGateway,
     private val clock: Clock,
 ) {
-    suspend fun reconcile(accountId: String, timezone: String) {
+    /** Serializa [reconcile]; o motivo está no KDoc dele. */
+    private val reconcileLock = Mutex()
+
+    /**
+     * Reconcilia os Lembretes e Alarmes de Dose com o banco. Uma reconciliação por vez: cada passada lê o banco e só
+     * então agenda ou cancela. Passadas em paralelo, vindas dos receivers ou do ViewModel de Remédios, podem terminar
+     * fora de ordem, e a que leu antes de uma gravação reagenda o Lembrete que a outra acabou de cancelar. Não é
+     * reentrante: o que roda dentro de [reconcile] não pode chamá-lo.
+     */
+    suspend fun reconcile(accountId: String, timezone: String) = reconcileLock.withLock { reconcileSchedule(accountId, timezone) }
+
+    private suspend fun reconcileSchedule(accountId: String, timezone: String) {
         val now = clock.instant()
         val today = LocalDate.now(clock.withZone(ZoneId.of(timezone)))
         // Desde ontem: uma Dose da noite adiada pode voltar depois da meia-noite.

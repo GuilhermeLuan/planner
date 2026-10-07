@@ -1,13 +1,16 @@
 package dev.guilhermeluan.planner.medicines
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
@@ -24,6 +27,9 @@ import dev.guilhermeluan.planner.tasks.PlannerMedicine
 import dev.guilhermeluan.planner.ui.theme.PlannerPalette
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -85,22 +91,30 @@ class MedicinesScreenTest {
         onArchiveMedicine: (String) -> Unit = {},
         onRestoreMedicine: (String) -> Unit = {},
         lastRegisteredDays: Map<String, LocalDate> = emptyMap(),
+        exactAlarmsAllowed: Boolean = true,
+        // Um teste só abre as configurações se disser isso; um clique inesperado falha em vez de passar em silêncio.
+        onOpenAlarmSettings: () -> Unit = { error("Abrir as configurações de alarme não era esperado neste teste") },
         onSnoozeDose: (PlannedDose) -> Unit = {},
+        restoration: StateRestorationTester? = null,
         onSetDoseStatus: (PlannedDose, DoseStatus) -> Unit = { _, _ -> },
-    ) = composeRule.setContent {
-        PlannerTheme {
-            MedicinesScreen(
-                state = MedicinesUiState(selectedDay, doses, medicines, archived, lastRegisteredDays),
-                onEditMedicine = onEditMedicine,
-                onArchiveMedicine = onArchiveMedicine,
-                onRestoreMedicine = onRestoreMedicine,
-                today = clockToday,
-                zone = zone,
-                onSetDoseStatus = onSetDoseStatus,
-                onSnoozeDose = onSnoozeDose,
-                onCreateMedicine = onCreateMedicine,
-            )
+    ) {
+        val content: @Composable () -> Unit = {
+            PlannerTheme {
+                MedicinesScreen(
+                    state = MedicinesUiState(selectedDay, doses, medicines, archived, lastRegisteredDays, exactAlarmsAllowed),
+                    onEditMedicine = onEditMedicine,
+                    onArchiveMedicine = onArchiveMedicine,
+                    onRestoreMedicine = onRestoreMedicine,
+                    today = clockToday,
+                    zone = zone,
+                    onSetDoseStatus = onSetDoseStatus,
+                    onSnoozeDose = onSnoozeDose,
+                    onCreateMedicine = onCreateMedicine,
+                    onOpenAlarmSettings = onOpenAlarmSettings,
+                )
+            }
         }
+        if (restoration == null) composeRule.setContent(content) else restoration.setContent(content)
     }
 
     @Test
@@ -234,6 +248,16 @@ class MedicinesScreenTest {
 
         composeRule.onNodeWithText("1x ao dia · 21:30 · alarme 30 min depois").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("1x ao dia · 20:00 · alarme 1 hora depois").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("1x ao dia · 08:00").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun aMedicineAlarmShowsAsPausedWhileTheExactAlarmPermissionIsMissing() {
+        val quick = medicine("m6", "Magnésio", LocalTime.of(21, 30)).copy(alarmDelay = Duration.ofMinutes(30))
+        val plain = medicine("m8", "Ômega", LocalTime.of(8, 0))
+        show(doses = emptyList(), medicines = listOf(quick, plain), exactAlarmsAllowed = false)
+
+        composeRule.onNodeWithText("1x ao dia · 21:30 · alarme pausado").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("1x ao dia · 08:00").performScrollTo().assertIsDisplayed()
     }
 
@@ -380,6 +404,30 @@ class MedicinesScreenTest {
     }
 
     @Test
+    fun pausedAlarmsShowABannerThatOpensTheAlarmSettings() {
+        var opened = false
+        show(
+            medicines = listOf(medicine("m6", "Magnésio", LocalTime.of(21, 30)).copy(alarmDelay = Duration.ofMinutes(30))),
+            exactAlarmsAllowed = false,
+            onOpenAlarmSettings = { opened = true },
+        )
+
+        composeRule.onNodeWithTag("alarms-paused-banner").assertIsDisplayed()
+        composeRule.onNodeWithText("Alarmes pausados").assertIsDisplayed()
+        composeRule.onNodeWithText("Sem a permissão de alarmes, só a notificação avisa das doses.").assertIsDisplayed()
+        composeRule.onNodeWithText("Reativar alarmes").performClick()
+
+        assertTrue(opened)
+    }
+
+    @Test
+    fun withoutPausedAlarmsThereIsNoBanner() {
+        show(exactAlarmsAllowed = false)
+
+        composeRule.onNodeWithTag("alarms-paused-banner").assertDoesNotExist()
+    }
+
+    @Test
     fun editingAMedicineWithNothingRegisteredTodayHasNoWarning() {
         show(lastRegisteredDays = mapOf("m2" to today.minusDays(1)))
 
@@ -387,5 +435,183 @@ class MedicinesScreenTest {
 
         composeRule.onNodeWithText("Editar remédio").assertIsDisplayed()
         composeRule.onNodeWithText("as mudanças valem a partir de amanhã", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun savingANewMedicineWithAnAlarmSavesItAndThenExplainsTheExactAlarmPermission() {
+        val created = mutableListOf<MedicineDraft>()
+        var opened = false
+        show(
+            doses = emptyList(),
+            medicines = emptyList(),
+            exactAlarmsAllowed = false,
+            onCreateMedicine = { created += it },
+            onOpenAlarmSettings = { opened = true },
+        )
+
+        composeRule.onNodeWithTag("new-medicine-fab").performClick()
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-alarm-switch").performScrollTo().performClick()
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+
+        composeRule.onNodeWithTag("medicine-name").assertDoesNotExist()
+        assertEquals(30, created.single().alarmDelayMinutes)
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertIsDisplayed()
+        composeRule.onNodeWithText("Abrir configurações").performClick()
+
+        assertEquals(1, created.size)
+        assertTrue(opened)
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertDoesNotExist()
+    }
+
+    @Test
+    fun withTheExactAlarmPermissionAMedicineWithAnAlarmIsSavedRightAway() {
+        var created: MedicineDraft? = null
+        show(
+            doses = emptyList(),
+            medicines = emptyList(),
+            exactAlarmsAllowed = true,
+            onCreateMedicine = { created = it },
+        )
+
+        composeRule.onNodeWithTag("new-medicine-fab").performClick()
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-alarm-switch").performScrollTo().performClick()
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+
+        assertEquals(30, created?.alarmDelayMinutes)
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertDoesNotExist()
+    }
+
+    @Test
+    fun aMedicineWithoutAnAlarmIsSavedRightAwayEvenWithoutTheExactAlarmPermission() {
+        var created: MedicineDraft? = null
+        show(
+            doses = emptyList(),
+            medicines = emptyList(),
+            exactAlarmsAllowed = false,
+            onCreateMedicine = { created = it },
+        )
+
+        composeRule.onNodeWithTag("new-medicine-fab").performClick()
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+
+        assertEquals("Vitamina D", created?.name)
+        assertNull(created?.alarmDelayMinutes)
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertDoesNotExist()
+    }
+
+    @Test
+    fun notNowKeepsTheMedicineSavedWithItsAlarmAndOnlyTheNotificationRings() {
+        val created = mutableListOf<MedicineDraft>()
+        var opened = false
+        show(
+            doses = emptyList(),
+            medicines = emptyList(),
+            exactAlarmsAllowed = false,
+            onCreateMedicine = { created += it },
+            onOpenAlarmSettings = { opened = true },
+        )
+
+        composeRule.onNodeWithTag("new-medicine-fab").performClick()
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-alarm-switch").performScrollTo().performClick()
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+        assertEquals(30, created.single().alarmDelayMinutes)
+
+        composeRule.onNodeWithText("Agora não, usar só a notificação").performClick()
+
+        assertEquals(1, created.size)
+        assertFalse(opened)
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertDoesNotExist()
+    }
+
+    @Test
+    fun dismissingTheExactAlarmSheetClosesItWithoutSavingAgain() {
+        val created = mutableListOf<MedicineDraft>()
+        show(doses = emptyList(), medicines = emptyList(), exactAlarmsAllowed = false, onCreateMedicine = { created += it })
+
+        composeRule.onNodeWithTag("new-medicine-fab").performClick()
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-alarm-switch").performScrollTo().performClick()
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+        assertEquals(1, created.size)
+
+        composeRule.onNodeWithContentDescription("Close sheet").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) { composeRule.onAllNodesWithTag("exact-alarm-sheet").fetchSemanticsNodes().isEmpty() }
+
+        assertEquals(1, created.size)
+    }
+
+    @Test
+    fun theExactAlarmSheetStaysOpenAfterARotationWithoutSavingTheMedicineAgain() {
+        val created = mutableListOf<MedicineDraft>()
+        val restoration = StateRestorationTester(composeRule)
+        show(
+            doses = emptyList(),
+            medicines = emptyList(),
+            exactAlarmsAllowed = false,
+            onCreateMedicine = { created += it },
+            restoration = restoration,
+        )
+
+        composeRule.onNodeWithTag("new-medicine-fab").performClick()
+        composeRule.onNodeWithTag("medicine-name").performTextInput("Vitamina D")
+        composeRule.onNodeWithTag("medicine-alarm-switch").performScrollTo().performClick()
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "Para tocar o alarme de Vitamina D às 08:30 se a dose das 08:00 continuar pendente, o Android precisa da permissão Alarmes e lembretes.",
+        ).assertIsDisplayed()
+        assertEquals(1, created.size)
+    }
+
+    @Test
+    fun editingAMedicineToRingAnAlarmSavesItAndThenExplainsTheExactAlarmPermission() {
+        val edited = mutableListOf<Pair<String, MedicineDraft>>()
+        var opened = false
+        show(
+            exactAlarmsAllowed = false,
+            onEditMedicine = { id, draft -> edited += id to draft },
+            onOpenAlarmSettings = { opened = true },
+        )
+
+        composeRule.onNodeWithTag("medicine-card-m2").performScrollTo().performClick()
+        composeRule.onNodeWithTag("medicine-alarm-switch").performScrollTo().performClick()
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+
+        assertEquals("m2", edited.single().first)
+        assertEquals(30, edited.single().second.alarmDelayMinutes)
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertIsDisplayed()
+        composeRule.onNodeWithText("Abrir configurações").performClick()
+
+        assertEquals(1, edited.size)
+        assertTrue(opened)
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertDoesNotExist()
+    }
+
+    @Test
+    fun editingTheNameOfAMedicineThatAlreadyHadAnAlarmDoesNotAskForThePermissionAgain() {
+        var edited: Pair<String, MedicineDraft>? = null
+        val withAlarm = medicine("m2", "Vitamina D", LocalTime.of(13, 0)).copy(alarmDelay = Duration.ofMinutes(30))
+        show(medicines = listOf(withAlarm), exactAlarmsAllowed = false, onEditMedicine = { id, draft -> edited = id to draft })
+
+        composeRule.onNodeWithTag("medicine-card-m2").performScrollTo().performClick()
+        composeRule.onNodeWithTag("medicine-name").performTextReplacement("Vitamina D3")
+        composeRule.onNodeWithText("Salvar remédio").performScrollTo().performClick()
+
+        composeRule.onNodeWithTag("exact-alarm-sheet").assertDoesNotExist()
+        assertEquals("Vitamina D3", edited?.second?.name)
+    }
+
+    @Test
+    fun aDraftWithoutDoseTimeDoesNotAskForThePermissionInsteadOfCrashing() {
+        val draft = MedicineDraft("Vitamina D", 1, DoseUnit.CAPSULE, emptySet(), MedicineRepeat.Daily, today, alarmDelayMinutes = 30)
+
+        assertNull(permissionPromptFor(draft, askForPermission = true, exactAlarmsAllowed = false))
     }
 }
