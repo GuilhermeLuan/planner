@@ -29,6 +29,7 @@ class MedicinesViewModel(
     private val clock: Clock = Clock.systemUTC(),
 ) : ViewModel() {
     private val selectedDay = MutableStateFlow(LocalDate.now(clock))
+    private val exactAlarmsAllowed = MutableStateFlow(true)
     private val _uiState = MutableStateFlow(MedicinesUiState(LocalDate.now(clock)))
     val uiState: StateFlow<MedicinesUiState> = _uiState.asStateFlow()
 
@@ -54,8 +55,9 @@ class MedicinesViewModel(
                         repository.observeMedicines(localPlanner.account.id),
                         repository.observeArchivedMedicines(localPlanner.account.id),
                         repository.observeLastRegisteredDays(localPlanner.account.id),
-                    ) { doses, medicines, archived, lastRegisteredDays ->
-                        MedicinesUiState(day, doses, medicines, archived, lastRegisteredDays)
+                        exactAlarmsAllowed,
+                    ) { doses, medicines, archived, lastRegisteredDays, allowed ->
+                        MedicinesUiState(day, doses, medicines, archived, lastRegisteredDays, allowed)
                     }
                 }
                 .collect { _uiState.value = it }
@@ -72,6 +74,13 @@ class MedicinesViewModel(
 
     fun selectDay(day: LocalDate) {
         selectedDay.value = day
+    }
+
+    /** A permissão de alarme exato muda fora do app; ao mudar, reconcilia para agendar ou tirar os Alarmes de Dose. */
+    fun setExactAlarmsAllowed(allowed: Boolean) {
+        if (exactAlarmsAllowed.value == allowed) return
+        exactAlarmsAllowed.value = allowed
+        reconcileReminders()
     }
 
     fun setDoseStatus(dose: PlannedDose, status: DoseStatus) = changeAndReconcile { account ->

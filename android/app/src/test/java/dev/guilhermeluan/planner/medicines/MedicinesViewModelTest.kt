@@ -3,6 +3,7 @@ package dev.guilhermeluan.planner.medicines
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import dev.guilhermeluan.planner.notifications.DoseAlarm
 import dev.guilhermeluan.planner.notifications.FakeDoseAlarmGateway
 import dev.guilhermeluan.planner.notifications.FakeDoseReminderGateway
 import dev.guilhermeluan.planner.notifications.DoseScheduleCoordinator
@@ -10,6 +11,7 @@ import dev.guilhermeluan.planner.session.Account
 import dev.guilhermeluan.planner.session.LocalPlanner
 import dev.guilhermeluan.planner.session.Planner
 import dev.guilhermeluan.planner.storage.PlannerDatabase
+import dev.guilhermeluan.planner.tasks.DoseKey
 import dev.guilhermeluan.planner.tasks.DoseStatus
 import dev.guilhermeluan.planner.tasks.DoseUnit
 import dev.guilhermeluan.planner.tasks.MedicineDraft
@@ -30,6 +32,8 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,6 +51,7 @@ class MedicinesViewModelTest {
     private lateinit var repository: RoomPlannerRepository
     private lateinit var reminders: DoseScheduleCoordinator
     private val gateway = FakeDoseReminderGateway()
+    private val alarms = FakeDoseAlarmGateway()
     private val account = Account("account-1", "ana", "America/Sao_Paulo", false)
     private val planner = Planner("planner-1", account.id)
 
@@ -64,7 +69,7 @@ class MedicinesViewModelTest {
         ).allowMainThreadQueries().build()
         var next = 0
         repository = RoomPlannerRepository(database, { "id-${next++}" }, clock)
-        reminders = DoseScheduleCoordinator(repository, gateway, FakeDoseAlarmGateway(), clock)
+        reminders = DoseScheduleCoordinator(repository, gateway, alarms, clock)
     }
 
     private val viewModels = mutableListOf<MedicinesViewModel>()
@@ -145,5 +150,51 @@ class MedicinesViewModelTest {
 
         withTimeout(5_000) { while (gateway.reminders.none { it.day == october1 }) yield() }
         assertEquals(Instant.parse("2026-10-02T01:40:00Z"), gateway.reminders.single { it.day == october1 }.triggerAt)
+    }
+
+    @Test
+    fun withoutTheExactAlarmPermissionTheAlarmsArePausedOnlyWhileAMedicineHasOne() = runBlocking {
+        database.seed(account, planner)
+        repository.createMedicine(
+            account.id,
+            planner.id,
+            MedicineDraft("Vitamina D", 1, DoseUnit.CAPSULE, setOf(LocalTime.of(13, 0)), MedicineRepeat.Daily, october1),
+        )
+        val viewModel = viewModel()
+        viewModel.bind(LocalPlanner(account, planner))
+
+        viewModel.setExactAlarmsAllowed(false)
+
+        val withoutAlarm = withTimeout(5_000) { viewModel.uiState.first { !it.exactAlarmsAllowed && it.medicines.isNotEmpty() } }
+        assertFalse(withoutAlarm.alarmsPaused)
+        repository.createMedicine(
+            account.id,
+            planner.id,
+            MedicineDraft("Magnésio", 1, DoseUnit.TABLET, setOf(LocalTime.of(21, 30)), MedicineRepeat.Daily, october1, alarmDelayMinutes = 30),
+        )
+        assertTrue(withTimeout(5_000) { viewModel.uiState.first { it.alarmsPaused } }.alarmsPaused)
+    }
+
+    @Test
+    fun regainingTheExactAlarmPermissionSchedulesTheDoseAlarms() = runBlocking {
+        database.seed(account, planner)
+        val medicine = repository.createMedicine(
+            account.id,
+            planner.id,
+            MedicineDraft("Vitamina D", 1, DoseUnit.CAPSULE, setOf(LocalTime.of(13, 0)), MedicineRepeat.Daily, october1, alarmDelayMinutes = 30),
+        )
+        // Um alarme que já estava agendado: sem a permissão, a reconciliação do bind o tira antes de a permissão voltar.
+        alarms.schedule(DoseAlarm(DoseKey(medicine.id, october2, LocalTime.of(13, 0)), "Vitamina D", "1 cápsula", Instant.parse("2026-10-02T16:30:00Z")))
+        alarms.canScheduleExact = false
+        val viewModel = viewModel()
+        viewModel.bind(LocalPlanner(account, planner))
+        withTimeout(5_000) { while (alarms.alarms.isNotEmpty()) yield() }
+
+        alarms.canScheduleExact = true
+        viewModel.setExactAlarmsAllowed(false)
+        viewModel.setExactAlarmsAllowed(true)
+
+        withTimeout(5_000) { while (alarms.alarms.none { it.key.day == october2 }) yield() }
+        assertEquals(Instant.parse("2026-10-02T16:30:00Z"), alarms.alarms.single { it.key.day == october2 }.triggerAt)
     }
 }

@@ -29,9 +29,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,6 +67,7 @@ import dev.guilhermeluan.planner.ui.theme.PlannerExtras
 import dev.guilhermeluan.planner.ui.theme.PlannerPalette
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -74,7 +78,34 @@ data class MedicinesUiState(
     val medicines: List<PlannerMedicine> = emptyList(),
     val archivedMedicines: List<PlannerMedicine> = emptyList(),
     val lastRegisteredDays: Map<String, LocalDate> = emptyMap(),
+    /** Se o app pode agendar alarmes exatos; sem isso os Alarmes de Dose não tocam. */
+    val exactAlarmsAllowed: Boolean = true,
+) {
+    /** Os Alarmes de Dose estão pausados: falta a permissão de alarme exato e algum Remédio tem alarme. */
+    val alarmsPaused: Boolean get() = !exactAlarmsAllowed && medicines.any { it.alarmDelay != null }
+}
+
+/** O que a folha de permissão precisa para explicar um alarme: o Remédio, o horário da dose e o atraso. */
+internal data class PermissionPrompt(val medicineName: String, val doseTime: LocalTime, val alarmDelayMinutes: Int)
+
+// Grava só primitivos (nome, horário em texto e minutos), para a folha continuar aberta depois de girar a tela.
+private val PermissionPromptSaver: Saver<PermissionPrompt?, Any> = listSaver(
+    save = { prompt -> prompt?.let { listOf(it.medicineName, it.doseTime.toString(), it.alarmDelayMinutes) }.orEmpty() },
+    restore = { saved ->
+        if (saved.isEmpty()) {
+            null
+        } else {
+            PermissionPrompt(saved[0] as String, LocalTime.parse(saved[1] as String), saved[2] as Int)
+        }
+    },
 )
+
+/** Decide se a folha aparece depois de gravar: só quando o alarme foi ligado agora, sem permissão, e há um horário. */
+internal fun permissionPromptFor(draft: MedicineDraft, askForPermission: Boolean, exactAlarmsAllowed: Boolean): PermissionPrompt? {
+    val alarmDelay = draft.alarmDelayMinutes ?: return null
+    val doseTime = draft.times.minOrNull() ?: return null
+    return if (askForPermission && !exactAlarmsAllowed) PermissionPrompt(draft.name, doseTime, alarmDelay) else null
+}
 
 private val PeriodEndFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", PtBr)
 private val HeaderTitleInk = Color(0xFFFFF4F8)
@@ -95,13 +126,23 @@ fun MedicinesScreen(
     onEditMedicine: (medicineId: String, MedicineDraft) -> Unit,
     onArchiveMedicine: (medicineId: String) -> Unit,
     onRestoreMedicine: (medicineId: String) -> Unit,
+    onOpenAlarmSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var viewingArchived by rememberSaveable { mutableStateOf(false) }
+    // A folha de permissão continua aberta depois de girar a tela (ver PermissionPromptSaver).
+    var permissionPrompt by rememberSaveable(stateSaver = PermissionPromptSaver) { mutableStateOf<PermissionPrompt?>(null) }
     val editing = state.medicines.firstOrNull { it.id == editingId }
     val nextDose = state.doses.firstOrNull { it.status == DoseStatus.PENDING }
+
+    // Grava o Remédio na hora: sem a permissão, o alarme fica guardado e pausado. Se o alarme foi ligado agora
+    // (no cadastro, ou num Remédio que não tinha alarme), a folha explica a permissão depois de gravar.
+    fun saveMedicine(medicineId: String?, draft: MedicineDraft, askForPermission: Boolean) {
+        if (medicineId == null) onCreateMedicine(draft) else onEditMedicine(medicineId, draft)
+        permissionPrompt = permissionPromptFor(draft, askForPermission, state.exactAlarmsAllowed)
+    }
 
     Surface(modifier.fillMaxSize().testTag("medicines-screen"), color = MaterialTheme.colorScheme.background) {
         Box {
@@ -111,6 +152,9 @@ fun MedicinesScreen(
                 verticalArrangement = Arrangement.spacedBy(26.dp),
             ) {
                 item { MedicinesHeader(state, today) }
+                if (state.alarmsPaused) {
+                    item { AlarmsPausedBanner(Modifier.padding(horizontal = 20.dp), onOpenAlarmSettings) }
+                }
                 // Doses registradas de um Remédio arquivado seguem no Dia, então elas também afastam o estado vazio.
                 if (state.medicines.isEmpty() && state.doses.isEmpty()) {
                     item { EmptyMedicines() }
@@ -159,7 +203,7 @@ fun MedicinesScreen(
                                 action = { SeeArchivedLink { viewingArchived = true } },
                             ) {
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    state.medicines.forEach { MedicineCard(it) { editingId = it.id } }
+                                    state.medicines.forEach { MedicineCard(it, alarmPaused = !state.exactAlarmsAllowed) { editingId = it.id } }
                                 }
                             }
                         }
@@ -191,7 +235,8 @@ fun MedicinesScreen(
             onDismiss = { editingId = null },
             onSave = {
                 editingId = null
-                onEditMedicine(medicine.id, it)
+                // Só o primeiro alarme do Remédio explica a permissão; editar um Remédio que já tinha alarme não.
+                saveMedicine(medicine.id, it, askForPermission = medicine.alarmDelay == null)
             },
             onArchive = {
                 editingId = null
@@ -214,8 +259,21 @@ fun MedicinesScreen(
             onDismiss = { creating = false },
             onSave = {
                 creating = false
-                onCreateMedicine(it)
+                saveMedicine(null, it, askForPermission = true)
             },
+        )
+    }
+
+    permissionPrompt?.let { prompt ->
+        ExactAlarmPermissionSheet(
+            medicineName = prompt.medicineName,
+            doseTime = prompt.doseTime,
+            alarmDelayMinutes = prompt.alarmDelayMinutes,
+            onOpenSettings = {
+                permissionPrompt = null
+                onOpenAlarmSettings()
+            },
+            onNotNow = { permissionPrompt = null },
         )
     }
 }
@@ -324,6 +382,33 @@ private fun AllDoneCard() {
     }
 }
 
+/** Aviso de que os Alarmes de Dose estão pausados sem a permissão de alarme exato. */
+@Composable
+private fun AlarmsPausedBanner(modifier: Modifier = Modifier, onOpenAlarmSettings: () -> Unit) {
+    val palette = PlannerExtras.palette
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(palette.alertSurface)
+            .border(1.dp, palette.alertLine, shape)
+            .padding(16.dp)
+            .testTag("alarms-paused-banner"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Alarmes pausados", style = MaterialTheme.typography.titleMedium, color = palette.alertAmber)
+        Text(
+            "Sem a permissão de alarmes, só a notificação avisa das doses.",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.secondaryInk,
+        )
+        TextButton(onClick = onOpenAlarmSettings) {
+            Text("Reativar alarmes", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
 @Composable
 private fun Section(title: String, action: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -411,7 +496,7 @@ private fun DoseRow(dose: PlannedDose, zone: ZoneId, onSetDoseStatus: (PlannedDo
 }
 
 @Composable
-private fun MedicineCard(medicine: PlannerMedicine, onClick: () -> Unit) {
+private fun MedicineCard(medicine: PlannerMedicine, alarmPaused: Boolean, onClick: () -> Unit) {
     val palette = PlannerExtras.palette
     val low = medicine.stock?.low == true
     val shape = RoundedCornerShape(20.dp)
@@ -433,7 +518,7 @@ private fun MedicineCard(medicine: PlannerMedicine, onClick: () -> Unit) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(medicine.name, style = MaterialTheme.typography.titleMedium, color = palette.wine)
-                Text(scheduleSummary(medicine), style = MaterialTheme.typography.bodySmall, color = palette.mutedInk)
+                Text(scheduleSummary(medicine, alarmPaused), style = MaterialTheme.typography.bodySmall, color = palette.mutedInk)
             }
             Icon(
                 PlannerTab.Medicines.icon,
@@ -481,7 +566,7 @@ private fun StockBar(fraction: Float, fill: Color, track: Color, modifier: Modif
     }
 }
 
-internal fun scheduleSummary(medicine: PlannerMedicine): String {
+internal fun scheduleSummary(medicine: PlannerMedicine, alarmPaused: Boolean = false): String {
     val times = medicine.times.sorted().joinToString(", ")
     val repeat = when (val r = medicine.repeat) {
         MedicineRepeat.Daily -> ""
@@ -489,7 +574,9 @@ internal fun scheduleSummary(medicine: PlannerMedicine): String {
             .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, PtBr).removeSuffix(".") }
         is MedicineRepeat.Period -> " · até ${r.end.format(PeriodEndFormatter)}"
     }
-    val alarm = medicine.alarmDelay?.let { " · alarme ${AlarmDelay.label(it.toMinutes().toInt())} depois" }.orEmpty()
+    val alarm = medicine.alarmDelay?.let {
+        if (alarmPaused) " · alarme pausado" else " · alarme ${AlarmDelay.label(it.toMinutes().toInt())} depois"
+    }.orEmpty()
     return "${medicine.times.size}x ao dia · $times$repeat$alarm"
 }
 

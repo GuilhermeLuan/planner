@@ -96,10 +96,10 @@ class DoseReminderActionReceiver : BroadcastReceiver() {
     }
 }
 
-/** Reconstrói os Lembretes e Alarmes de Dose depois de reiniciar o celular, que apaga o que estava agendado. */
+/** Reagenda Lembretes de Tarefas e Lembretes e Alarmes de Dose depois de reiniciar o celular, que apaga o que estava agendado. */
 class DoseScheduleBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        runAsync { (context.applicationContext as PlannerApplication).reconcileDoseSchedule() }
+        runAsync { (context.applicationContext as PlannerApplication).rescheduleAll() }
     }
 }

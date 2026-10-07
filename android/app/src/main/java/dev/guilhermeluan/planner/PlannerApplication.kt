@@ -9,6 +9,7 @@ import dev.guilhermeluan.planner.notifications.DoseAlarmAction
 import dev.guilhermeluan.planner.notifications.DoseAlarmService
 import dev.guilhermeluan.planner.notifications.DoseReminderAction
 import dev.guilhermeluan.planner.notifications.DoseScheduleCoordinator
+import dev.guilhermeluan.planner.notifications.PlannerNotificationScheduler
 import dev.guilhermeluan.planner.session.AccountSettingsRepository
 import dev.guilhermeluan.planner.session.LocalPlannerRepository
 import dev.guilhermeluan.planner.session.MigrationToLocal
@@ -20,6 +21,7 @@ import dev.guilhermeluan.planner.tasks.IdGenerator
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import dev.guilhermeluan.planner.water.WaterRepository
 import dev.guilhermeluan.planner.you.ConsistencyRepository
+import kotlinx.coroutines.flow.first
 import java.time.Clock
 import java.time.ZoneId
 import java.util.UUID
@@ -45,6 +47,14 @@ class PlannerApplication : Application() {
     suspend fun reconcileDoseSchedule() {
         val local = localPlannerRepository.restorePlanner() ?: return
         doseSchedule.reconcile(local.account.id, local.account.timezone)
+    }
+
+    /** Reagenda Lembretes de Tarefas e Lembretes/Alarmes de Dose da Conta local; usado quando a permissão de alarme exato volta. */
+    suspend fun rescheduleAll() {
+        reconcileDoseSchedule()
+        val local = localPlannerRepository.restorePlanner() ?: return
+        val tasks = medicinesRepository.observeScheduledTasks(local.account.id).first()
+        PlannerNotificationScheduler.rebuild(this, tasks, local.account.timezone)
     }
 
     suspend fun applyDoseReminderAction(key: DoseKey, action: DoseReminderAction) {
