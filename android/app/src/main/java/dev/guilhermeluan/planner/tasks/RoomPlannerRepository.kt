@@ -2,8 +2,10 @@ package dev.guilhermeluan.planner.tasks
 
 import androidx.room.withTransaction
 import dev.guilhermeluan.planner.day.Week
+import dev.guilhermeluan.planner.storage.DoseAlarmSnoozeEntity
 import dev.guilhermeluan.planner.storage.DoseRecordEntity
 import dev.guilhermeluan.planner.storage.DoseSnoozeEntity
+import dev.guilhermeluan.planner.storage.DoseSnoozeRow
 import dev.guilhermeluan.planner.storage.MedicineEntity
 import dev.guilhermeluan.planner.storage.MedicineArchivedPeriodEntity
 import dev.guilhermeluan.planner.storage.MedicinePreviousVersionEntity
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -225,6 +228,7 @@ class RoomPlannerRepository(
             startDate = (valid.repeat as? MedicineRepeat.Period)?.start ?: valid.startDate,
             status = MedicineStatus.ACTIVE,
             stock = valid.toStock(),
+            alarmDelay = valid.alarmDelay(),
         )
         persistMedicine(medicine)
         return medicine
@@ -257,6 +261,7 @@ class RoomPlannerRepository(
                 else -> current.startDate
             },
             stock = valid.toStock(current.stock),
+            alarmDelay = valid.alarmDelay(),
         )
         medicineDao.writeEditedMedicine(
             current.toPreviousVersion(from),
@@ -326,9 +331,15 @@ class RoomPlannerRepository(
         projectDoses(day, assembleMedicines(medicineEntities, times), records, previousVersions, archivedPeriods)
             .sortedBy(PlannedDose::time)
     }.combine(medicineDao.observeDoseSnoozes(accountId, day.toString())) { doses, snoozes ->
-        val snoozedUntil = snoozes.associate { (it.medicineId to LocalTime.parse(it.time)) to Instant.parse(it.snoozedUntil) }
+        val snoozedUntil = snoozes.untilByDose()
         doses.map { it.copy(snoozedUntil = snoozedUntil[it.medicineId to it.time]) }
+    }.combine(medicineDao.observeDoseAlarmSnoozes(accountId, day.toString())) { doses, snoozes ->
+        val snoozedUntil = snoozes.untilByDose()
+        doses.map { it.copy(alarmSnoozedUntil = snoozedUntil[it.medicineId to it.time]) }
     }
+
+    private fun List<DoseSnoozeRow>.untilByDose(): Map<Pair<String, LocalTime>, Instant> =
+        associate { (it.medicineId to LocalTime.parse(it.time)) to Instant.parse(it.snoozedUntil) }
 
     /** As Doses de cada Dia de [days], na mesma projeção de [observeDoses], em ordem de Dia e horário. */
     fun observeDosesBetween(accountId: String, days: ClosedRange<LocalDate>): Flow<List<PlannedDose>> = combine(
@@ -390,6 +401,13 @@ class RoomPlannerRepository(
     suspend fun snoozeDose(accountId: String, medicineId: String, day: LocalDate, time: LocalTime, until: Instant) {
         medicineDao.upsertDoseSnooze(
             DoseSnoozeEntity(medicineId, day.toString(), time.toString(), accountId, until.toString()),
+        )
+    }
+
+    /** Adia o Alarme de Dose para [until]; a Dose continua pendente. */
+    suspend fun snoozeDoseAlarm(accountId: String, dose: DoseKey, until: Instant) {
+        medicineDao.upsertDoseAlarmSnooze(
+            DoseAlarmSnoozeEntity(dose.medicineId, dose.day.toString(), dose.time.toString(), accountId, until.toString()),
         )
     }
 
@@ -538,6 +556,7 @@ private fun PlannerMedicine.doseOn(day: LocalDate, time: LocalTime, record: Dose
     time = time,
     status = record?.let { DoseStatus.valueOf(it.status) } ?: DoseStatus.PENDING,
     takenAt = record?.takenAt?.let(Instant::parse),
+    alarmDelay = alarmDelay,
 )
 
 private fun PlannerMedicine.toEntity(updatedAt: String) = MedicineEntity(
@@ -556,6 +575,7 @@ private fun PlannerMedicine.toEntity(updatedAt: String) = MedicineEntity(
     stockAmount = stock?.amount,
     stockCapacity = stock?.capacity,
     stockThreshold = stock?.threshold,
+    alarmDelayMinutes = alarmDelay?.toMinutes()?.toInt(),
 )
 
 private fun MedicineEntity.toDomain(times: Set<LocalTime>) = PlannerMedicine(
@@ -570,6 +590,7 @@ private fun MedicineEntity.toDomain(times: Set<LocalTime>) = PlannerMedicine(
     startDate = LocalDate.parse(startDate),
     status = MedicineStatus.valueOf(status),
     stock = stockAmount?.let { MedicineStock(it, stockCapacity ?: it, stockThreshold ?: 0) },
+    alarmDelay = alarmDelayMinutes?.let { Duration.ofMinutes(it.toLong()) },
 )
 
 private fun PlannerMedicine.toPreviousVersion(until: LocalDate) = MedicinePreviousVersionEntity(

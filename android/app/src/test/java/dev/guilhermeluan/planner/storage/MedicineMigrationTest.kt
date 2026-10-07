@@ -73,12 +73,13 @@ class MedicineMigrationTest {
         PlannerDatabase.MIGRATION_4_5.migrate(db)
         PlannerDatabase.MIGRATION_5_6.migrate(db)
         PlannerDatabase.MIGRATION_6_7.migrate(db)
+        PlannerDatabase.MIGRATION_8_9.migrate(db)
         val room = Room.inMemoryDatabaseBuilder(context, PlannerDatabase::class.java).build()
         val fresh = room.openHelper.writableDatabase
 
         listOf(
             "medicines", "medicine_times", "dose_records", "medicine_previous_versions", "medicine_archived_periods",
-            "dose_snoozes",
+            "dose_snoozes", "dose_alarm_snoozes",
         ).forEach { table ->
             assertEquals(table, shape(fresh, table), shape(db, table))
         }

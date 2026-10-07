@@ -19,6 +19,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.Clock
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -265,7 +266,11 @@ class MedicineRepositoryTest {
         repeat: MedicineRepeat = medicine.repeat,
         stock: Int? = medicine.stock?.amount,
         threshold: Int? = medicine.stock?.threshold,
-    ) = MedicineDraft(name, amount, medicine.unit, times, repeat, medicine.startDate, stock, threshold)
+        alarmDelayMinutes: Int? = medicine.alarmDelay?.toMinutes()?.toInt(),
+    ) = MedicineDraft(
+        name, amount, medicine.unit, times, repeat, medicine.startDate, stock, threshold,
+        alarmDelayMinutes = alarmDelayMinutes,
+    )
 
     private suspend fun edit(medicine: PlannerMedicine, draft: MedicineDraft, from: LocalDate = thursday.plusDays(1)) =
         repository.editMedicine(account.id, medicine.id, draft, from)
@@ -526,5 +531,45 @@ class MedicineRepositoryTest {
         repository.restoreMedicine(account.id, medicine.id, thursday.plusDays(1))
 
         assertEquals(listOf(DoseStatus.SKIPPED), doses(saturday).map { it.status })
+    }
+
+    @Test
+    fun aMedicineWithAnAlarmDelayShowsItOnItsDoses() = runTest {
+        val plain = create("Vitamina D", setOf(LocalTime.of(8, 0)))
+        val withAlarm = repository.createMedicine(
+            account.id, planner.id,
+            MedicineDraft(
+                "Magnésio", 2, DoseUnit.TABLET, setOf(LocalTime.of(21, 30)), MedicineRepeat.Daily, thursday,
+                alarmDelayMinutes = 45,
+            ),
+        )
+
+        val medicines = repository.observeMedicines(account.id).first().associateBy { it.id }
+        assertEquals(Duration.ofMinutes(45), medicines.getValue(withAlarm.id).alarmDelay)
+        assertNull("sem alarme por padrão", medicines.getValue(plain.id).alarmDelay)
+        assertEquals(listOf(null, Duration.ofMinutes(45)), doses(thursday).map { it.alarmDelay })
+    }
+
+    @Test
+    fun theAlarmDelayAcceptsFiveToOneHundredEightyMinutesOnly() = runTest {
+        val medicine = create()
+
+        val accepted = listOf(5, 180).map { runCatching { edit(medicine, draftOf(medicine, alarmDelayMinutes = it)) } }
+        val rejected = listOf(4, 181).map { runCatching { edit(medicine, draftOf(medicine, alarmDelayMinutes = it)) } }
+
+        assertTrue(accepted.all { it.isSuccess })
+        assertTrue(rejected.all { it.exceptionOrNull() is IllegalArgumentException })
+    }
+
+    @Test
+    fun editingTheAlarmDelayTurnsTheAlarmOnAndOff() = runTest {
+        val medicine = create()
+
+        val on = edit(medicine, draftOf(medicine, alarmDelayMinutes = 30))
+        assertEquals(Duration.ofMinutes(30), on.alarmDelay)
+
+        val off = edit(on, draftOf(on, alarmDelayMinutes = null))
+        assertNull(off.alarmDelay)
+        assertNull(doses(thursday.plusDays(2)).single().alarmDelay)
     }
 }

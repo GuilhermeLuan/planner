@@ -35,10 +35,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import dev.guilhermeluan.planner.ui.components.ClockFormatter
 
-private val TimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,7 +68,7 @@ fun OptionalTimePickerField(
         ) {
             Text(label, style = MaterialTheme.typography.labelSmall)
             Text(
-                text = value?.format(TimeFormatter) ?: "Sem horário",
+                text = value?.format(ClockFormatter) ?: "Sem horário",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )

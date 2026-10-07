@@ -2,7 +2,13 @@ package dev.guilhermeluan.planner.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -64,4 +70,25 @@ fun PlannerChip(
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
     )
+}
+
+/** Interruptor do Figma (46 x 28): trilho framboesa quando ligado e botão branco. */
+@Composable
+fun PlannerSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = PlannerExtras.palette
+    Box(
+        modifier = modifier
+            .size(width = 46.dp, height = 28.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (checked) MaterialTheme.colorScheme.primary else palette.line)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(3.dp),
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        Box(Modifier.size(22.dp).clip(CircleShape).background(Color.White))
+    }
 }

@@ -9,9 +9,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.ui.theme.PlannerExtras
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 val PtBr = Locale("pt", "BR")
+
+/** Horário como o app mostra: "08:00", "21:30". */
+val ClockFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
 
 @Composable
 fun FormField(label: String, content: @Composable () -> Unit) {

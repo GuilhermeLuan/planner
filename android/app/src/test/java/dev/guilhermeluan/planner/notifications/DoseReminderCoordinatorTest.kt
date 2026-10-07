@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.guilhermeluan.planner.session.Account
 import dev.guilhermeluan.planner.session.Planner
 import dev.guilhermeluan.planner.storage.PlannerDatabase
+import dev.guilhermeluan.planner.tasks.DoseKey
 import dev.guilhermeluan.planner.tasks.DoseStatus
 import dev.guilhermeluan.planner.tasks.DoseUnit
 import dev.guilhermeluan.planner.tasks.MedicineDraft
@@ -13,8 +14,6 @@ import dev.guilhermeluan.planner.tasks.MedicineRepeat
 import dev.guilhermeluan.planner.tasks.PlannerMedicine
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import dev.guilhermeluan.planner.testsupport.seed
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -22,6 +21,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -30,10 +31,10 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 
 @RunWith(RobolectricTestRunner::class)
-class MedicineReminderCoordinatorTest {
+class DoseReminderCoordinatorTest {
     private lateinit var database: PlannerDatabase
     private lateinit var repository: RoomPlannerRepository
-    private lateinit var coordinator: MedicineReminderCoordinator
+    private lateinit var coordinator: DoseScheduleCoordinator
     private val gateway = FakeDoseReminderGateway()
     private val account = Account("account-1", "ana", "America/Sao_Paulo", false)
     private val planner = Planner("planner-1", account.id)
@@ -55,7 +56,7 @@ class MedicineReminderCoordinatorTest {
         }
         var next = 0
         repository = RoomPlannerRepository(database, { "id-${next++}" }, clock)
-        coordinator = MedicineReminderCoordinator(repository, gateway, clock)
+        coordinator = DoseScheduleCoordinator(repository, gateway, FakeDoseAlarmGateway(), clock)
     }
 
     @After
@@ -102,8 +103,8 @@ class MedicineReminderCoordinatorTest {
     @Test
     fun aDoseRegisteredInTheAppDismissesItsDeliveredReminder() = runTest {
         val medicine = create("Vitamina D", setOf(LocalTime.of(8, 0), LocalTime.of(13, 0)))
-        val taken = DoseReminder.keyOf(medicine.id, thursday, LocalTime.of(8, 0))
-        val pending = DoseReminder.keyOf(medicine.id, thursday, LocalTime.of(13, 0))
+        val taken = DoseKey(medicine.id, thursday, LocalTime.of(8, 0))
+        val pending = DoseKey(medicine.id, thursday, LocalTime.of(13, 0))
 
         repository.setDoseStatus(account.id, medicine.id, thursday, LocalTime.of(8, 0), DoseStatus.TAKEN)
         coordinator.reconcile(account.id, account.timezone)
@@ -169,7 +170,7 @@ class MedicineReminderCoordinatorTest {
         now = Instant.parse("2026-10-02T00:40:00Z")
 
         listOf(LocalTime.of(13, 0), LocalTime.of(21, 30)).forEach { time ->
-            val key = DoseReminder.keyOf(medicine.id, thursday, time)
+            val key = DoseKey(medicine.id, thursday, time)
             coordinator.applyAction(account.id, account.timezone, key, DoseReminderAction.TAKE)
         }
 
@@ -195,7 +196,7 @@ class MedicineReminderCoordinatorTest {
     @Test
     fun snoozingBeforeTheDoseTimeNeverRemindsEarlier() = runTest {
         val medicine = create("Vitamina D", setOf(LocalTime.of(13, 0)))
-        val key = DoseReminder.keyOf(medicine.id, thursday, LocalTime.of(13, 0))
+        val key = DoseKey(medicine.id, thursday, LocalTime.of(13, 0))
 
         coordinator.applyAction(account.id, account.timezone, key, DoseReminderAction.SNOOZE)
         coordinator.applyAction(account.id, account.timezone, key, DoseReminderAction.SNOOZE)
@@ -206,15 +207,15 @@ class MedicineReminderCoordinatorTest {
 
 /** Gateway falso: guarda o que está agendado, como o AlarmManager guardaria. Seguro entre threads. */
 class FakeDoseReminderGateway : DoseReminderGateway {
-    private val scheduled = linkedMapOf<String, DoseReminder>()
+    private val scheduled = linkedMapOf<DoseKey, DoseReminder>()
 
     val reminders: List<DoseReminder> @Synchronized get() = scheduled.values.toList()
 
     /** Lembretes já entregues que foram tirados da tela. */
-    val dismissed = mutableSetOf<String>()
+    val dismissed = mutableSetOf<DoseKey>()
 
     @Synchronized
-    override fun scheduledKeys(): Set<String> = scheduled.keys.toSet()
+    override fun scheduledKeys(): Set<DoseKey> = scheduled.keys.toSet()
 
     @Synchronized
     override fun schedule(reminder: DoseReminder) {
@@ -222,12 +223,12 @@ class FakeDoseReminderGateway : DoseReminderGateway {
     }
 
     @Synchronized
-    override fun cancel(key: String) {
+    override fun cancel(key: DoseKey) {
         scheduled.remove(key)
     }
 
     @Synchronized
-    override fun dismiss(key: String) {
+    override fun dismiss(key: DoseKey) {
         dismissed += key
     }
 }

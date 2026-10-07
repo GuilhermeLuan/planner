@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.guilhermeluan.planner.day.CompleteCircle
+import dev.guilhermeluan.planner.tasks.AlarmDelay
 import dev.guilhermeluan.planner.tasks.DoseStatus
 import dev.guilhermeluan.planner.tasks.MedicineDraft
 import dev.guilhermeluan.planner.tasks.MedicineRepeat
@@ -488,7 +489,8 @@ internal fun scheduleSummary(medicine: PlannerMedicine): String {
             .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, PtBr).removeSuffix(".") }
         is MedicineRepeat.Period -> " · até ${r.end.format(PeriodEndFormatter)}"
     }
-    return "${medicine.times.size}x ao dia · $times$repeat"
+    val alarm = medicine.alarmDelay?.let { " · alarme ${AlarmDelay.label(it.toMinutes().toInt())} depois" }.orEmpty()
+    return "${medicine.times.size}x ao dia · $times$repeat$alarm"
 }
 
 @Composable
