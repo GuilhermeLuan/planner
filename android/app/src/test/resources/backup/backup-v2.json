@@ -1,0 +1,173 @@
+{
+  "versao": 2,
+  "exportadoEm": "2026-07-14T11:05:30.123456Z",
+  "conta": {
+    "id": "acc-1",
+    "nome": "Ana",
+    "fuso": "America/Sao_Paulo"
+  },
+  "planner": {
+    "id": "plan-1"
+  },
+  "tarefas": [
+    {
+      "id": "task-1",
+      "titulo": "Comprar pão",
+      "dia": "2026-07-12",
+      "horario": "08:00",
+      "status": "PENDING",
+      "arquivada": false
+    },
+    {
+      "id": "task-2",
+      "titulo": "Enviar relatório",
+      "dia": "2026-07-13",
+      "horario": null,
+      "status": "DONE",
+      "arquivada": true
+    }
+  ],
+  "rotinas": [
+    {
+      "id": "rot-1",
+      "titulo": "Meditar",
+      "diasDaSemana": [1, 3, 5],
+      "dataInicio": "2026-01-01",
+      "horario": "07:00",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "rot-2",
+      "titulo": "Ler",
+      "diasDaSemana": [2, 4],
+      "dataInicio": "2026-02-01",
+      "horario": null,
+      "status": "ARCHIVED"
+    }
+  ],
+  "ocorrencias": [
+    {
+      "id": "rot-1:2026-07-13",
+      "rotinaId": "rot-1",
+      "titulo": "Meditar",
+      "dia": "2026-07-13",
+      "horario": "07:00",
+      "status": "DONE"
+    }
+  ],
+  "remedios": [
+    {
+      "id": "med-1",
+      "nome": "Vitamina C",
+      "dose": {
+        "quantidade": 1,
+        "unidade": "TABLET"
+      },
+      "horarios": ["08:00", "20:00"],
+      "repeticao": {
+        "tipo": "WEEKDAYS",
+        "diasDaSemana": [1, 2, 3, 4, 5],
+        "dataInicio": "2026-07-01",
+        "dataFim": null
+      },
+      "status": "ACTIVE",
+      "estoque": {
+        "quantidade": 20,
+        "capacidade": null,
+        "limiteAviso": 5
+      },
+      "alarme": {
+        "atrasoMinutos": 10
+      },
+      "versoesAnteriores": [],
+      "periodosArquivados": []
+    },
+    {
+      "id": "med-2",
+      "nome": "Antibiótico",
+      "dose": {
+        "quantidade": 2,
+        "unidade": "CAPSULE"
+      },
+      "horarios": ["12:00"],
+      "repeticao": {
+        "tipo": "PERIOD",
+        "diasDaSemana": [],
+        "dataInicio": "2026-07-05",
+        "dataFim": "2026-08-04"
+      },
+      "status": "ACTIVE",
+      "estoque": null,
+      "alarme": null,
+      "versoesAnteriores": [
+        {
+          "ate": "2026-07-04",
+          "nome": "Antibiótico (dose antiga)",
+          "dose": {
+            "quantidade": 1,
+            "unidade": "TABLET"
+          },
+          "horarios": ["08:00", "20:00"],
+          "repeticao": {
+            "tipo": "DAILY",
+            "diasDaSemana": [],
+            "dataInicio": "2026-06-01",
+            "dataFim": null
+          }
+        }
+      ],
+      "periodosArquivados": [
+        {
+          "de": "2026-06-01",
+          "ate": null
+        }
+      ]
+    }
+  ],
+  "doses": [
+    {
+      "remedioId": "med-1",
+      "dia": "2026-07-13",
+      "horario": "08:00",
+      "status": "TAKEN",
+      "tomadaEm": "2026-07-13T11:02:15Z",
+      "estoqueDescontado": 1
+    },
+    {
+      "remedioId": "med-1",
+      "dia": "2026-07-13",
+      "horario": "20:00",
+      "status": "SKIPPED",
+      "tomadaEm": null,
+      "estoqueDescontado": 0
+    }
+  ],
+  "agua": {
+    "metas": [
+      {
+        "validaDesde": "2026-07-01",
+        "metaMl": 2000
+      },
+      {
+        "validaDesde": "2026-07-15",
+        "metaMl": 2500
+      }
+    ],
+    "consumo": [
+      {
+        "dia": "2026-07-13",
+        "totalMl": 1500
+      },
+      {
+        "dia": "2026-07-14",
+        "totalMl": 750
+      }
+    ],
+    "lembrete": {
+      "ativo": true,
+      "intervaloHoras": 2,
+      "inicio": "08:00",
+      "fim": "22:00"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "versao": 1,
+  "exportadoEm": "2026-07-14T11:05:30.123456Z",
+  "conta": {
+    "id": "acc-1",
+    "nome": "Ana",
+    "fuso": "America/Sao_Paulo"
+  },
+  "planner": {
+    "id": "plan-1"
+  },
+  "tarefas": [
+    {
+      "id": "task-1",
+      "titulo": "Comprar pão",
+      "dia": "2026-07-12",
+      "horario": "08:00",
+      "status": "PENDING",
+      "arquivada": false
+    },
+    {
+      "id": "task-2",
+      "titulo": "Enviar relatório",
+      "dia": "2026-07-13",
+      "horario": null,
+      "status": "DONE",
+      "arquivada": true
+    }
+  ],
+  "rotinas": [
+    {
+      "id": "rot-1",
+      "titulo": "Meditar",
+      "diasDaSemana": [1, 3, 5],
+      "dataInicio": "2026-01-01",
+      "horario": "07:00",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "rot-2",
+      "titulo": "Ler",
+      "diasDaSemana": [2, 4],
+      "dataInicio": "2026-02-01",
+      "horario": null,
+      "status": "ARCHIVED"
+    }
+  ],
+  "ocorrencias": [
+    {
+      "id": "rot-1:2026-07-13",
+      "rotinaId": "rot-1",
+      "titulo": "Meditar",
+      "dia": "2026-07-13",
+      "horario": "07:00",
+      "status": "DONE"
+    }
+  ]
+}
