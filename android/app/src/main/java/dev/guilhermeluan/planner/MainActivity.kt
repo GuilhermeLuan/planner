@@ -218,6 +218,7 @@ private fun PlannerApp(
                         onAdd = waterViewModel::add,
                         onAdjustTotal = waterViewModel::adjustTotal,
                         onSetGoal = waterViewModel::setGoal,
+                        onSaveReminder = waterViewModel::saveReminderSettings,
                     )
                 },
                 you = {

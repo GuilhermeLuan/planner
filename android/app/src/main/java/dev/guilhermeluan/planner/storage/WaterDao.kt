@@ -32,4 +32,10 @@ interface WaterDao {
 
     @Query("SELECT MIN(day) FROM water_intakes WHERE accountId = :accountId")
     fun observeEarliestIntakeDay(accountId: String): Flow<String?>
+
+    @Query("SELECT * FROM water_reminder_settings WHERE accountId = :accountId")
+    fun observeReminderSettings(accountId: String): Flow<WaterReminderSettingsEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertReminderSettings(settings: WaterReminderSettingsEntity)
 }

@@ -15,6 +15,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,6 +25,7 @@ import org.robolectric.RobolectricTestRunner
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneOffset
 
 @RunWith(RobolectricTestRunner::class)
@@ -122,6 +126,85 @@ class WaterRepositoryTest {
             week,
         )
         assertEquals(listOf(true, false, true, false, false, false, false), week.map(WaterDay::goalMet))
+    }
+
+    @Test
+    fun reminderIsOffEveryTwoHoursBetweenEightAndTwentyUntilSomethingIsSaved() = runTest {
+        assertEquals(WaterReminderSettings(), repository.observeReminderSettings(account.id).first())
+    }
+
+    @Test
+    fun savedReminderSettingsAreObservedExactlyAsSaved() = runTest {
+        val settings = WaterReminderSettings(
+            enabled = true,
+            intervalHours = 3,
+            windowStart = LocalTime.of(9, 30),
+            windowEnd = LocalTime.of(18, 15),
+        )
+
+        repository.saveReminderSettings(account.id, settings)
+
+        assertEquals(settings, repository.observeReminderSettings(account.id).first())
+    }
+
+    @Test
+    fun savingAgainReplacesThePreviousReminderSettings() = runTest {
+        repository.saveReminderSettings(account.id, WaterReminderSettings(enabled = true, intervalHours = 1))
+        val replacement = WaterReminderSettings(
+            intervalHours = 3,
+            windowStart = LocalTime.of(10, 0),
+            windowEnd = LocalTime.of(12, 0),
+        )
+
+        repository.saveReminderSettings(account.id, replacement)
+
+        assertEquals(replacement, repository.observeReminderSettings(account.id).first())
+    }
+
+    @Test
+    fun reminderIntervalOutsideTheOptionsIsRejected() = runTest {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveReminderSettings(account.id, WaterReminderSettings(intervalHours = 4)) }
+        }
+    }
+
+    @Test
+    fun reminderWindowThatDoesNotEndAfterItStartsIsRejected() = runTest {
+        val emptyWindow = WaterReminderSettings(windowStart = LocalTime.of(8, 0), windowEnd = LocalTime.of(8, 0))
+        val acrossMidnight = WaterReminderSettings(windowStart = LocalTime.of(22, 0), windowEnd = LocalTime.of(6, 0))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveReminderSettings(account.id, emptyWindow) }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveReminderSettings(account.id, acrossMidnight) }
+        }
+    }
+
+    @Test
+    fun reminderSettingsOfOneAccountDoNotShowUpForAnother() = runTest {
+        database.openHelper.writableDatabase.execSQL(
+            "INSERT INTO accounts (id, username, timezone, mustChangePassword) VALUES ('account-2', 'bia', 'America/Sao_Paulo', 0)",
+        )
+
+        repository.saveReminderSettings(account.id, WaterReminderSettings(enabled = true, intervalHours = 1))
+
+        assertEquals(WaterReminderSettings(), repository.observeReminderSettings("account-2").first())
+    }
+
+    @Test
+    fun defaultReminderSettingsAreValid() {
+        assertTrue(WaterReminderSettings().isValid)
+    }
+
+    @Test
+    fun reminderIntervalOutsideTheOptionsIsInvalid() {
+        assertFalse(WaterReminderSettings(intervalHours = 4).isValid)
+    }
+
+    @Test
+    fun reminderWindowThatEndsBeforeItStartsIsInvalid() {
+        assertFalse(WaterReminderSettings(windowStart = LocalTime.of(20, 0), windowEnd = LocalTime.of(8, 0)).isValid)
     }
 
     private suspend fun goalOn(day: LocalDate) = repository.observeDay(account.id, day).first().goalMl

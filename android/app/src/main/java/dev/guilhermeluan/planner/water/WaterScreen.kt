@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.guilhermeluan.planner.ui.components.ClockFormatter
 import dev.guilhermeluan.planner.ui.components.PlannerScene
 import dev.guilhermeluan.planner.ui.components.PtBr
 import dev.guilhermeluan.planner.ui.components.SceneColors
@@ -67,6 +68,8 @@ data class WaterUiState(
     val week: List<WaterDay> = emptyList(),
     /** O Dia selecionado na aba Hoje (hoje, até outro ser escolhido); só alimenta o resumo "Seu dia". */
     val viewedDay: WaterDay = day,
+    /** Lembrete de água da Conta; desligado até ser salvo. */
+    val reminder: WaterReminderSettings = WaterReminderSettings(),
 )
 
 private val HeaderTitleInk = Color(0xFFFFF4F8)
@@ -114,11 +117,13 @@ fun WaterScreen(
     onAdd: (ml: Int) -> Unit,
     onAdjustTotal: (totalMl: Int) -> Unit,
     onSetGoal: (goalMl: Int) -> Unit,
+    onSaveReminder: (settings: WaterReminderSettings) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val day = state.day
     var choosingAmount by rememberSaveable { mutableStateOf(false) }
     var editingGoal by rememberSaveable { mutableStateOf(false) }
+    var editingReminder by rememberSaveable { mutableStateOf(false) }
     Surface(modifier.fillMaxSize().testTag("water-screen"), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             WaterHeader("Meta de ${WaterText.liters(day.goalMl)} por dia") { editingGoal = true }
@@ -140,6 +145,7 @@ fun WaterScreen(
                     AddButton("+ ${WaterText.BOTTLE_ML} ml", "Garrafa", primary = false, Modifier.weight(1f)) { onAdd(WaterText.BOTTLE_ML) }
                     AddButton("Outro valor", "ajustar total", primary = false, Modifier.weight(1f)) { choosingAmount = true }
                 }
+                ReminderCard(state.reminder) { editingReminder = true }
                 if (state.week.isNotEmpty()) WeekCard(state.week, today = day.day)
             }
         }
@@ -166,6 +172,16 @@ fun WaterScreen(
             onAdjustTotal = {
                 choosingAmount = false
                 onAdjustTotal(it)
+            },
+        )
+    }
+    if (editingReminder) {
+        WaterReminderSheet(
+            current = state.reminder,
+            onDismiss = { editingReminder = false },
+            onSave = {
+                editingReminder = false
+                onSaveReminder(it)
             },
         )
     }
@@ -223,6 +239,32 @@ private fun AddButton(label: String, caption: String, primary: Boolean, modifier
             color = if (primary) AddButtonPrimaryCaption else waterTones.buttonCaption,
             maxLines = 1,
         )
+    }
+}
+
+/** Cartão do Lembrete de água: diz se está desligado ou o intervalo e a janela; o toque abre a folha. */
+@Composable
+private fun ReminderCard(reminder: WaterReminderSettings, onClick: () -> Unit) {
+    val palette = PlannerExtras.palette
+    val shape = RoundedCornerShape(22.dp)
+    val summary = if (reminder.enabled) {
+        "A cada ${reminder.intervalHours} h · ${reminder.windowStart.format(ClockFormatter)}–${reminder.windowEnd.format(ClockFormatter)}"
+    } else {
+        "Desligado"
+    }
+    Column(
+        Modifier
+            .testTag("water-reminder-card")
+            .fillMaxWidth()
+            .clip(shape)
+            .background(palette.surface)
+            .border(1.dp, waterTones.cardLine, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Lembrar de beber água", style = MaterialTheme.typography.headlineSmall.copy(fontSize = 19.sp), color = palette.wine)
+        Text(summary, style = MaterialTheme.typography.bodyMedium, color = palette.secondaryInk)
     }
 }
 

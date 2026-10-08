@@ -29,6 +29,12 @@
         <receiver
             android:name=".notifications.DoseAlarmActionReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".notifications.WaterReminderReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notifications.WaterReminderActionReceiver"
+            android:exported="false" />
         <service
             android:name=".notifications.DoseAlarmService"
             android:exported="false"

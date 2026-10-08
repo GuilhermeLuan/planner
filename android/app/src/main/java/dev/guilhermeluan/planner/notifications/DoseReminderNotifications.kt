@@ -96,7 +96,7 @@ class DoseReminderActionReceiver : BroadcastReceiver() {
     }
 }
 
-/** Reagenda Lembretes de Tarefas e Lembretes e Alarmes de Dose depois de reiniciar o celular, que apaga o que estava agendado. */
+/** Reagenda Lembretes de Tarefas, Lembretes e Alarmes de Dose e Lembretes de água depois de reiniciar o celular, que apaga o que estava agendado. */
 class DoseScheduleBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return

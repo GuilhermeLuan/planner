@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -21,6 +22,7 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +30,7 @@ import org.robolectric.RobolectricTestRunner
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 
@@ -65,6 +68,9 @@ class WaterViewModelTest {
 
     private val viewModels = mutableListOf<WaterViewModel>()
 
+    // Cada reagendamento dos Lembretes de água chega aqui, na ordem em que aconteceu.
+    private val waterChanges = Channel<Pair<String, String>>(Channel.UNLIMITED)
+
     @After
     fun tearDown() {
         // A observação do Dia pode seguir depois das asserções; ela para antes de o banco fechar.
@@ -73,7 +79,9 @@ class WaterViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun boundViewModel() = WaterViewModel(repository, clock).also {
+    private fun boundViewModel() = WaterViewModel(repository, clock, onWaterChanged = { accountId, timezone ->
+        waterChanges.send(accountId to timezone)
+    }).also {
         viewModels += it
         it.bind(LocalPlanner(account, planner))
     }
@@ -138,6 +146,15 @@ class WaterViewModelTest {
     }
 
     @Test
+    fun changingTheAccountTimezoneRebuildsTheWaterRemindersInTheNewTimezone() = runBlocking {
+        val viewModel = boundViewModel()
+
+        viewModel.updateTimezone("Asia/Tokyo")
+
+        assertEquals(account.id to "Asia/Tokyo", withTimeout(5_000) { waterChanges.receive() })
+    }
+
+    @Test
     fun viewedDayFollowsTheSelectedDayWhileTodayStaysTheTabDay() = runBlocking {
         repository.add(account.id, october1, 600)
         repository.add(account.id, september30, 1500)
@@ -157,5 +174,61 @@ class WaterViewModelTest {
         val state = withTimeout(5_000) { boundViewModel().uiState.first { it.viewedDay.consumedMl == 600 } }
 
         assertEquals(october1, state.viewedDay.day)
+    }
+
+    @Test
+    fun addingAdjustingAndSettingTheGoalRebuildTheWaterRemindersInTheAccountTimezone() = runBlocking {
+        val viewModel = boundViewModel()
+
+        viewModel.add(500)
+        viewModel.adjustTotal(300)
+        viewModel.setGoal(2500)
+
+        repeat(3) { assertEquals(account.id to "America/Sao_Paulo", withTimeout(5_000) { waterChanges.receive() }) }
+    }
+
+    @Test
+    fun savingTheReminderSavesItAndRebuildsTheWaterRemindersInTheAccountTimezone() = runBlocking {
+        val viewModel = boundViewModel()
+        val settings = WaterReminderSettings(enabled = true, intervalHours = 1, windowStart = LocalTime.of(7, 30), windowEnd = LocalTime.of(22, 0))
+
+        viewModel.saveReminderSettings(settings)
+
+        assertEquals(account.id to "America/Sao_Paulo", withTimeout(5_000) { waterChanges.receive() })
+        assertEquals(settings, repository.observeReminderSettings(account.id).first())
+    }
+
+    @Test
+    fun invalidReminderIsRefusedWithoutCrashingOrRebuildingTheWaterReminders() = runBlocking {
+        val viewModel = boundViewModel()
+        // Sem a checagem de validade, o erro do repositório escaparia da corrotina até o handler de exceções não tratadas, que derruba o app.
+        val escaped = mutableListOf<Throwable>()
+        val thread = Thread.currentThread()
+        val handler = thread.uncaughtExceptionHandler
+        thread.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, error -> escaped += error }
+        try {
+            viewModel.saveReminderSettings(WaterReminderSettings(enabled = true, intervalHours = 4))
+            viewModel.saveReminderSettings(WaterReminderSettings(enabled = true, windowStart = LocalTime.of(20, 0), windowEnd = LocalTime.of(8, 0)))
+        } finally {
+            thread.uncaughtExceptionHandler = handler
+        }
+
+        assertEquals(emptyList<Throwable>(), escaped)
+        assertNull(waterChanges.tryReceive().getOrNull())
+        assertEquals(WaterReminderSettings(), repository.observeReminderSettings(account.id).first())
+    }
+
+    @Test
+    fun reminderIsOffUntilTheAccountSavesOneAndSurvivesWaterChanges() = runBlocking {
+        val viewModel = boundViewModel()
+        assertEquals(WaterReminderSettings(), withTimeout(5_000) { viewModel.uiState.first { it.week.isNotEmpty() } }.reminder)
+
+        val saved = WaterReminderSettings(enabled = true, intervalHours = 3, windowStart = LocalTime.of(9, 0), windowEnd = LocalTime.of(21, 30))
+        repository.saveReminderSettings(account.id, saved)
+        withTimeout(5_000) { viewModel.uiState.first { it.reminder == saved } }
+
+        viewModel.add(200)
+        withTimeout(5_000) { viewModel.uiState.first { it.day.consumedMl == 200 } }
+        assertEquals(saved, viewModel.uiState.value.reminder)
     }
 }

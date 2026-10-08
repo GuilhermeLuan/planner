@@ -1,5 +1,8 @@
 package dev.guilhermeluan.planner.water
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -22,6 +25,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.time.LocalTime
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w400dp-h1600dp")
@@ -46,8 +50,30 @@ class WaterScreenTest {
                 onAdd = onAdd,
                 onAdjustTotal = onAdjustTotal,
                 onSetGoal = onSetGoal,
+                onSaveReminder = {},
             )
         }
+    }
+
+    @Test
+    fun reminderCardSaysWhetherTheWaterRemindersAreOnAndHowOften() {
+        var reminder by mutableStateOf(WaterReminderSettings(enabled = true, intervalHours = 2, windowStart = LocalTime.of(8, 0), windowEnd = LocalTime.of(20, 0)))
+        composeRule.setContent {
+            PlannerTheme(darkTheme = false) {
+                WaterScreen(
+                    state = WaterUiState(WaterDay(today, 1200, 2000), reminder = reminder),
+                    onAdd = {},
+                    onAdjustTotal = {},
+                    onSetGoal = {},
+                    onSaveReminder = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("water-reminder-card").assertIsDisplayed()
+        composeRule.onNodeWithText("A cada 2 h · 08:00–20:00").assertIsDisplayed()
+        composeRule.runOnIdle { reminder = WaterReminderSettings() }
+        composeRule.onNodeWithText("Desligado").assertIsDisplayed()
     }
 
     @Test

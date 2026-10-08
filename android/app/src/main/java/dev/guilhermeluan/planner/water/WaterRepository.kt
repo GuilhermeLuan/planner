@@ -5,12 +5,14 @@ import dev.guilhermeluan.planner.day.Week
 import dev.guilhermeluan.planner.storage.PlannerDatabase
 import dev.guilhermeluan.planner.storage.WaterGoalEntity
 import dev.guilhermeluan.planner.storage.WaterIntakeEntity
+import dev.guilhermeluan.planner.storage.WaterReminderSettingsEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 
 /** Consumo de água do Dia contra a Meta de água vigente naquele Dia. */
 data class WaterDay(val day: LocalDate, val consumedMl: Int, val goalMl: Int) {
@@ -41,6 +43,10 @@ class WaterRepository(
         Week.days(week).map { day -> WaterDay(day, totals[day.toString()] ?: 0, goals.goalOn(day)) }
     }
 
+    /** Sem configuração salva para a Conta, vale o padrão, com o Lembrete desligado. */
+    fun observeReminderSettings(accountId: String): Flow<WaterReminderSettings> =
+        dao.observeReminderSettings(accountId).map { it?.toSettings() ?: WaterReminderSettings() }
+
     suspend fun add(accountId: String, day: LocalDate, ml: Int) {
         require(ml > 0) { "Some uma quantidade positiva de água" }
         database.withTransaction {
@@ -66,6 +72,14 @@ class WaterRepository(
         }
     }
 
+    /** Salva a configuração do Lembrete de água da Conta, substituindo a anterior. */
+    suspend fun saveReminderSettings(accountId: String, settings: WaterReminderSettings) {
+        require(settings.isValid) {
+            "O Lembrete de água precisa de intervalo de 1, 2 ou 3 horas e de janela que termine depois de começar"
+        }
+        dao.upsertReminderSettings(settings.toEntity(accountId))
+    }
+
     companion object {
         const val DEFAULT_GOAL_ML = 2000
     }
@@ -73,3 +87,9 @@ class WaterRepository(
 
 private fun List<WaterGoalEntity>.goalOn(day: LocalDate): Int =
     lastOrNull { LocalDate.parse(it.validFrom) <= day }?.goalMl ?: WaterRepository.DEFAULT_GOAL_ML
+
+private fun WaterReminderSettingsEntity.toSettings(): WaterReminderSettings =
+    WaterReminderSettings(enabled, intervalHours, LocalTime.parse(windowStart), LocalTime.parse(windowEnd))
+
+private fun WaterReminderSettings.toEntity(accountId: String): WaterReminderSettingsEntity =
+    WaterReminderSettingsEntity(accountId, enabled, intervalHours, windowStart.toString(), windowEnd.toString())

@@ -40,6 +40,13 @@ class WaterMigrationTest {
         }
     }
 
+    /** Banco na versão 9, com as tabelas que a migração 9→10 precisa preservar. */
+    private fun versionNineDatabase(): SupportSQLiteDatabase {
+        val db = versionSevenDatabase()
+        listOf(PlannerDatabase.MIGRATION_7_8, PlannerDatabase.MIGRATION_8_9).forEach { it.migrate(db) }
+        return db
+    }
+
     private fun shape(db: SupportSQLiteDatabase, table: String): List<String> {
         val columns = db.query("PRAGMA table_info($table)").use { c ->
             generateSequence { if (c.moveToNext()) "${c.getString(1)}:${c.getString(2)}:${c.getInt(3)}:${c.getInt(5)}" else null }.toList()
@@ -83,6 +90,35 @@ class WaterMigrationTest {
         listOf("water_goals", "water_intakes").forEach { table ->
             assertEquals(table, shape(fresh, table), shape(db, table))
         }
+        room.close()
+    }
+
+    @Test
+    fun migrationNineToTenKeepsExistingDataAndStartsWithoutReminderSettings() {
+        val db = versionNineDatabase()
+        db.execSQL("INSERT INTO accounts (id, username) VALUES ('a', 'ana')")
+        db.execSQL("INSERT INTO water_goals (accountId, validFrom, goalMl) VALUES ('a', '2026-10-01', 2500)")
+
+        PlannerDatabase.MIGRATION_9_10.migrate(db)
+
+        db.query("SELECT goalMl FROM water_goals WHERE accountId = 'a'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(2500, c.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM water_reminder_settings").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+        }
+    }
+
+    @Test
+    fun migratedReminderSettingsTableMatchesTheSchemaRoomGenerates() {
+        val db = versionNineDatabase()
+        PlannerDatabase.MIGRATION_9_10.migrate(db)
+        val room = Room.inMemoryDatabaseBuilder(context, PlannerDatabase::class.java).build()
+        val fresh = room.openHelper.writableDatabase
+
+        assertEquals("water_reminder_settings", shape(fresh, "water_reminder_settings"), shape(db, "water_reminder_settings"))
         room.close()
     }
 }
