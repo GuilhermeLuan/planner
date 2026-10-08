@@ -23,6 +23,8 @@ import java.time.ZoneId
 class WaterViewModel(
     private val repository: WaterRepository,
     private val clock: Clock = Clock.systemUTC(),
+    /** Reagenda os Lembretes de água da Conta no Fuso da Conta informado; chamado depois de cada mudança de água. */
+    private val onWaterChanged: suspend (accountId: String, timezone: String) -> Unit = { _, _ -> },
 ) : ViewModel() {
     // A aba Água registra só no dia de hoje, no Fuso da Conta.
     private val today = MutableStateFlow(LocalDate.now(clock))
@@ -34,6 +36,7 @@ class WaterViewModel(
     private var zone: ZoneId = ZoneId.systemDefault()
     private var observeJob: Job? = null
     private var viewedJob: Job? = null
+    private var reminderJob: Job? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun bind(localPlanner: LocalPlanner) {
@@ -50,7 +53,7 @@ class WaterViewModel(
                         WaterUiState(week.single { it.day == day }, week)
                     }
                 }
-                .collect { state -> _uiState.update { state.copy(viewedDay = it.viewedDay) } }
+                .collect { state -> _uiState.update { state.copy(viewedDay = it.viewedDay, reminder = it.reminder) } }
         }
         viewedJob?.cancel()
         viewedJob = viewModelScope.launch {
@@ -58,12 +61,17 @@ class WaterViewModel(
                 .flatMapLatest { day -> repository.observeDay(account, day) }
                 .collect { water -> _uiState.update { it.copy(viewedDay = water) } }
         }
+        reminderJob?.cancel()
+        reminderJob = viewModelScope.launch {
+            repository.observeReminderSettings(account).collect { settings -> _uiState.update { it.copy(reminder = settings) } }
+        }
     }
 
     /** Segue o Fuso da Conta (ADR 0022): o "hoje" da aba passa a ser o do novo fuso. */
     fun updateTimezone(timezone: String) {
         zone = ZoneId.of(timezone)
         refreshToday()
+        change(timezone)
     }
 
     /** Reavalia o dia de hoje, para a aba virar de Dia à meia-noite. */
@@ -83,13 +91,26 @@ class WaterViewModel(
     /** A meta muda de hoje em diante; Dias passados mantêm a meta que tinham. */
     fun setGoal(goalMl: Int) = change { account -> repository.setGoal(account, goalMl, from = today.value) }
 
-    private fun change(action: suspend (accountId: String) -> Unit) {
+    /** Configuração inválida nem chega ao repositório: não é salva e os Lembretes de água não são reagendados. */
+    fun saveReminderSettings(settings: WaterReminderSettings) {
+        if (!settings.isValid) return
+        change { account -> repository.saveReminderSettings(account, settings) }
+    }
+
+    /** Executa [action] na Conta vinculada e só depois reagenda os Lembretes de água no Fuso da Conta. */
+    private fun change(timezone: String = zone.id, action: suspend (accountId: String) -> Unit = {}) {
         val account = accountId ?: return
-        viewModelScope.launch { action(account) }
+        viewModelScope.launch {
+            action(account)
+            onWaterChanged(account, timezone)
+        }
     }
 
     class Factory(private val application: PlannerApplication) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = WaterViewModel(application.waterRepository) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = WaterViewModel(
+            application.waterRepository,
+            onWaterChanged = { account, timezone -> application.waterReminders.reconcile(account, timezone) },
+        ) as T
     }
 }

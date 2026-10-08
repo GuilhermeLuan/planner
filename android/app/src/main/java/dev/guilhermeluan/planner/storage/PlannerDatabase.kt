@@ -20,8 +20,9 @@ import androidx.room.RoomDatabase
         DoseAlarmSnoozeEntity::class,
         WaterIntakeEntity::class,
         WaterGoalEntity::class,
+        WaterReminderSettingsEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class PlannerDatabase : RoomDatabase() {
@@ -223,6 +224,20 @@ abstract class PlannerDatabase : RoomDatabase() {
                     )""",
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_dose_alarm_snoozes_accountId_day ON dose_alarm_snoozes(accountId, day)")
+            }
+        }
+        val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS water_reminder_settings (
+                        accountId TEXT NOT NULL PRIMARY KEY,
+                        enabled INTEGER NOT NULL,
+                        intervalHours INTEGER NOT NULL,
+                        windowStart TEXT NOT NULL,
+                        windowEnd TEXT NOT NULL,
+                        FOREIGN KEY(accountId) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )""",
+                )
             }
         }
     }

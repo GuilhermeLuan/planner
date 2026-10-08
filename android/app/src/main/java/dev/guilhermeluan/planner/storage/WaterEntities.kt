@@ -41,3 +41,24 @@ data class WaterGoalEntity(
     val validFrom: String,
     val goalMl: Int,
 )
+
+/** Configuração do Lembrete de água: uma linha por Conta, com os horários no formato "08:00". */
+@Entity(
+    tableName = "water_reminder_settings",
+    primaryKeys = ["accountId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class WaterReminderSettingsEntity(
+    val accountId: String,
+    val enabled: Boolean,
+    val intervalHours: Int,
+    val windowStart: String,
+    val windowEnd: String,
+)
