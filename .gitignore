@@ -4,9 +4,11 @@ server/.cache/
 
 # Android
 android/.gradle/
+android/.kotlin/
 android/local.properties
 android/**/build/
 android/.idea/
+.idea/
 *.iml
 
 # Local/runtime data

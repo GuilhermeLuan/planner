@@ -38,4 +38,13 @@ interface WaterDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertReminderSettings(settings: WaterReminderSettingsEntity)
+
+    @Query("SELECT * FROM water_intakes WHERE accountId = :accountId")
+    suspend fun intakesByAccount(accountId: String): List<WaterIntakeEntity>
+
+    @Query("SELECT * FROM water_goals WHERE accountId = :accountId")
+    suspend fun goalsByAccount(accountId: String): List<WaterGoalEntity>
+
+    @Query("SELECT * FROM water_reminder_settings WHERE accountId = :accountId")
+    suspend fun reminderSettings(accountId: String): WaterReminderSettingsEntity?
 }

@@ -195,6 +195,27 @@ abstract class MedicineDao {
 
     @Query("SELECT * FROM dose_snoozes WHERE accountId = :accountId AND `day` = :day")
     abstract fun observeDoseSnoozes(accountId: String, day: String): Flow<List<DoseSnoozeEntity>>
+
+    @Query("SELECT * FROM medicines WHERE accountId = :accountId")
+    abstract suspend fun medicinesByAccount(accountId: String): List<MedicineEntity>
+
+    @Query(
+        "SELECT t.* FROM medicine_times t JOIN medicines m ON m.id = t.medicineId WHERE m.accountId = :accountId",
+    )
+    abstract suspend fun timesByAccount(accountId: String): List<MedicineTimeEntity>
+
+    @Query("SELECT * FROM dose_records WHERE accountId = :accountId")
+    abstract suspend fun doseRecordsByAccount(accountId: String): List<DoseRecordEntity>
+
+    @Query(
+        "SELECT v.* FROM medicine_previous_versions v JOIN medicines m ON m.id = v.medicineId WHERE m.accountId = :accountId",
+    )
+    abstract suspend fun previousVersionsByAccount(accountId: String): List<MedicinePreviousVersionEntity>
+
+    @Query(
+        "SELECT p.* FROM medicine_archived_periods p JOIN medicines m ON m.id = p.medicineId WHERE m.accountId = :accountId",
+    )
+    abstract suspend fun archivedPeriodsByAccount(accountId: String): List<MedicineArchivedPeriodEntity>
 }
 
 /** Último Dia com Dose registrada de um Remédio. */
