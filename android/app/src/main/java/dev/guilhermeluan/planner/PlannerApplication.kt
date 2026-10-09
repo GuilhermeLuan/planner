@@ -24,6 +24,10 @@ import dev.guilhermeluan.planner.tasks.DoseKey
 import dev.guilhermeluan.planner.tasks.IdGenerator
 import dev.guilhermeluan.planner.tasks.RoomPlannerRepository
 import dev.guilhermeluan.planner.water.WaterRepository
+import dev.guilhermeluan.planner.widget.QuickActionService
+import dev.guilhermeluan.planner.widget.QuickConfirmation
+import dev.guilhermeluan.planner.widget.QuickConfirmationStore
+import dev.guilhermeluan.planner.widget.QuickKind
 import dev.guilhermeluan.planner.you.ConsistencyRepository
 import kotlinx.coroutines.flow.first
 import java.time.Clock
@@ -102,6 +106,22 @@ class PlannerApplication : Application() {
     suspend fun addWaterGlass() {
         val local = localPlannerRepository.restorePlanner() ?: return
         waterReminders.addGlass(local.account.id, local.account.timezone)
+    }
+
+    val quickConfirmations by lazy { QuickConfirmationStore(this) }
+    val quickActions by lazy {
+        QuickActionService(waterRepository, waterReminders, medicinesRepository, doseSchedule, Clock.systemUTC())
+    }
+
+    /** Ação do widget: o resultado confirmado do botão [kind], ou nulo se a ação não se aplica (sem Planner ou sem Dose). */
+    suspend fun runQuickAction(kind: QuickKind): QuickConfirmation? {
+        val local = localPlannerRepository.restorePlanner() ?: return null
+        val confirmation = when (kind) {
+            QuickKind.Water -> quickActions.addWater(local.account.id, local.account.timezone)
+            QuickKind.Medicine -> quickActions.takeNextDose(local.account.id, local.account.timezone)
+        } ?: return null
+        quickConfirmations.save(confirmation)
+        return confirmation
     }
 
     val waterRepository by lazy { WaterRepository(database, Clock.systemUTC()) }

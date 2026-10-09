@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -63,16 +64,41 @@ class MainActivity : ComponentActivity() {
     private val waterViewModel: WaterViewModel by viewModels { WaterViewModel.Factory(application as PlannerApplication) }
     private val youViewModel: YouViewModel by viewModels { YouViewModel.Factory(application as PlannerApplication) }
 
+    /** Para onde o widget pediu para ir; vale até a tela correspondente tratar o pedido. */
+    private var destination by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Depois de uma recriação (rotação) o pedido original já foi tratado.
+        if (savedInstanceState == null) destination = intent.destination()
         setContent {
             PlannerTheme {
                 NotificationPermissionRequester {
-                    PlannerApp(viewModel, dayViewModel, medicinesViewModel, waterViewModel, youViewModel)
+                    PlannerApp(
+                        viewModel, dayViewModel, medicinesViewModel, waterViewModel, youViewModel,
+                        destination = destination,
+                        onDestinationHandled = { destination = null },
+                    )
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Um lançamento sem pedido (ícone do app) não apaga o pedido do widget ainda não tratado.
+        intent.destination()?.let { destination = it }
+    }
+
+    private fun Intent.destination(): String? = getStringExtra(EXTRA_DESTINATION)
+
+    companion object {
+        /** Extra que diz a tela em que o app deve abrir; usado pelo widget de ação rápida. */
+        const val EXTRA_DESTINATION = "destination"
+        const val DESTINATION_NEW_TASK = "new_task"
+        const val DESTINATION_MEDICINES = "medicines"
     }
 }
 
@@ -97,6 +123,8 @@ private fun PlannerApp(
     medicinesViewModel: MedicinesViewModel,
     waterViewModel: WaterViewModel,
     youViewModel: YouViewModel,
+    destination: String?,
+    onDestinationHandled: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dayState by dayViewModel.uiState.collectAsStateWithLifecycle()
@@ -229,6 +257,15 @@ private fun PlannerApp(
             val greetingTime = clockNow.toLocalTime()
             LaunchedEffect(clockNow.toLocalDate()) { waterViewModel.refreshToday() }
             PlannerTabHost(
+                requestedTab = when (destination) {
+                    MainActivity.DESTINATION_NEW_TASK -> PlannerTab.Today
+                    MainActivity.DESTINATION_MEDICINES -> PlannerTab.Medicines
+                    else -> null
+                },
+                onRequestedTabHandled = {
+                    // A criação da Tarefa ainda precisa da tela Hoje; quem a abre limpa o pedido.
+                    if (destination == MainActivity.DESTINATION_MEDICINES) onDestinationHandled()
+                },
                 today = { openTab ->
                     DayScreen(
                         state = dayState,
@@ -246,6 +283,8 @@ private fun PlannerApp(
                         onOpenMedicines = { openTab(PlannerTab.Medicines) },
                         userName = localPlanner.account.username,
                         now = greetingTime,
+                        startCreateTask = destination == MainActivity.DESTINATION_NEW_TASK,
+                        onStartCreateTaskHandled = onDestinationHandled,
                     )
                 },
                 medicines = {

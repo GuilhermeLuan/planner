@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import android.app.Activity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.runtime.getValue
@@ -23,9 +24,17 @@ fun PlannerTabHost(
     you: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     medicines: (@Composable () -> Unit)? = null,
+    requestedTab: PlannerTab? = null,
+    onRequestedTabHandled: () -> Unit = {},
 ) {
     LightStatusBarIconsOnScene()
     var selected by rememberSaveable { mutableStateOf(PlannerTab.Today) }
+    LaunchedEffect(requestedTab) {
+        if (requestedTab != null) {
+            selected = requestedTab
+            onRequestedTabHandled()
+        }
+    }
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(Modifier.weight(1f)) {
             when (selected) {

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_quick_description">Atalhos para nova tarefa, água e remédio</string>
+    <color name="widget_background">#FFFFF7FA</color>
+    <color name="widget_button">#FFFFE3EE</color>
+    <color name="widget_icon">#FFA83262</color>
+    <color name="widget_label">#FF2B1821</color>
+</resources>

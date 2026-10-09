@@ -53,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -104,9 +105,18 @@ fun DayScreen(
     onOpenMedicines: () -> Unit = {},
     userName: String = "",
     now: LocalTime = LocalTime.now(),
+    /** Abre direto o formulário de nova Tarefa (atalho do widget); [onStartCreateTaskHandled] avisa que já abriu. */
+    startCreateTask: Boolean = false,
+    onStartCreateTaskHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showCreateTask by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(startCreateTask) {
+        if (startCreateTask) {
+            showCreateTask = true
+            onStartCreateTaskHandled()
+        }
+    }
     var draftTitle by rememberSaveable { mutableStateOf("") }
     var draftTime by rememberSaveable { mutableStateOf("") }
     var showCreateRoutine by rememberSaveable { mutableStateOf(false) }
