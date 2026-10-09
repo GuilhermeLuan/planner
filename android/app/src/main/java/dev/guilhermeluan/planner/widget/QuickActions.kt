@@ -16,6 +16,7 @@ fun confirmationUntil(now: Instant): Instant = now.plus(CONFIRMATION_DURATION)
 
 enum class QuickKind { Water, Medicine }
 
+
 /**
  * O que um botão do widget mostra depois do toque: [title] e [detail] são as duas linhas abaixo do ícone `check`,
  * [description] é o que o leitor de tela fala. Vale até [until], exclusive.

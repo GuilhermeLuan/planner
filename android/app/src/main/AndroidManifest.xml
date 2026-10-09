@@ -76,13 +76,9 @@
         <receiver
             android:name=".widget.QuickActionsResetReceiver"
             android:exported="false" />
-        <activity
-            android:name=".widget.QuickActionActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <receiver
+            android:name=".widget.QuickActionReceiver"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

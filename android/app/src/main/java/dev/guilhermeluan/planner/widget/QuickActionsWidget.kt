@@ -16,6 +16,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.action.Action
+import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -74,6 +75,7 @@ class QuickActionsWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val store = (context.applicationContext as PlannerApplication).quickConfirmations
+        refreshState(context, id)
         provideContent {
             // Ler o estado do Glance faz o conteúdo recompor a cada refresh, mesmo com a sessão ainda aberta; sem
             // isso, a confirmação nova (ou a expirada) não chega à tela.
@@ -91,11 +93,16 @@ class QuickActionsWidget : GlanceAppWidget() {
         const val EXTRA_KIND = "quickKind"
         private val REFRESH_KEY = longPreferencesKey("refresh")
 
+        /** Mexer no estado do Glance é o que força o conteúdo a recompor com a sessão aberta. */
+        private suspend fun refreshState(context: Context, id: GlanceId) {
+            updateAppWidgetState(context, id) { it[REFRESH_KEY] = System.nanoTime() }
+        }
+
         /** Redesenha o widget e agenda o retorno ao repouso quando [confirmation] expirar. */
         suspend fun refresh(context: Context, confirmation: QuickConfirmation? = null) {
             val widget = QuickActionsWidget()
             GlanceAppWidgetManager(context).getGlanceIds(QuickActionsWidget::class.java).forEach { id ->
-                updateAppWidgetState(context, id) { it[REFRESH_KEY] = System.nanoTime() }
+                refreshState(context, id)
                 widget.update(context, id)
             }
             confirmation?.let { scheduleReset(context, it.until) }
@@ -139,19 +146,21 @@ private fun QuickActionsContent(context: Context, water: QuickConfirmation?, med
         QuickButton(
             modifier = GlanceModifier.defaultWeight(),
             icon = R.drawable.ic_widget_water_drop, label = "Água", description = "Beber um copo de água",
-            confirmation = water, onClick = trampoline(context, QuickKind.Water),
+            confirmation = water,
+            onClick = broadcast(context, QuickKind.Water),
         )
         Spacer(GlanceModifier.width(8.dp))
         QuickButton(
             modifier = GlanceModifier.defaultWeight(),
             icon = R.drawable.ic_widget_pill, label = "Remédio", description = "Marcar o remédio como tomado",
-            confirmation = medicine, onClick = trampoline(context, QuickKind.Medicine),
+            confirmation = medicine,
+            onClick = broadcast(context, QuickKind.Medicine),
         )
     }
 }
 
-private fun trampoline(context: Context, kind: QuickKind): Action =
-    actionStartActivity(Intent(context, QuickActionActivity::class.java).putExtra(QuickActionsWidget.EXTRA_KIND, kind.name))
+private fun broadcast(context: Context, kind: QuickKind): Action =
+    actionSendBroadcast(Intent(context, QuickActionReceiver::class.java).putExtra(QuickActionsWidget.EXTRA_KIND, kind.name))
 
 @Composable
 private fun QuickButton(
