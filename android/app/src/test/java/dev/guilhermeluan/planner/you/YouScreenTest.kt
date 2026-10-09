@@ -59,6 +59,7 @@ class YouScreenTest {
         onSaveTimezone: (String) -> Unit = {},
         onOpenNotificationSettings: () -> Unit = {},
         onExportBackup: () -> Unit = {},
+        onImportBackup: () -> Unit = {},
         onRestoreTask: (String) -> Unit = {},
         onRestoreRoutine: (String) -> Unit = {},
         onRestoreMedicine: (String) -> Unit = {},
@@ -70,6 +71,7 @@ class YouScreenTest {
                 onSaveTimezone = onSaveTimezone,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onExportBackup = onExportBackup,
+                onImportBackup = onImportBackup,
                 onRestoreTask = onRestoreTask,
                 onRestoreRoutine = onRestoreRoutine,
                 onRestoreMedicine = onRestoreMedicine,
@@ -216,6 +218,18 @@ class YouScreenTest {
         openSettings()
 
         composeRule.onNodeWithText("Nenhum backup ainda").assertIsDisplayed()
+    }
+
+    @Test
+    fun importBackupShowsInSettingsAndImportsOnTap() {
+        var imported = 0
+        show(onImportBackup = { imported++ })
+        openSettings()
+
+        composeRule.onNodeWithText("Importar backup").assertIsDisplayed()
+        composeRule.onNodeWithText("Importar").performClick()
+
+        assertEquals(1, imported)
     }
 
     private val task = PlannerTask("t1", "a", "p", "Pagar conta", LocalDate.of(2026, 9, 3), LocalTime.of(9, 0), TaskStatus.PENDING, true, 0)

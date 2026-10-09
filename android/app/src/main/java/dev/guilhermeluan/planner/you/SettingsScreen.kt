@@ -54,6 +54,7 @@ fun SettingsScreen(
     onSaveTimezone: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
     onRestoreTask: (String) -> Unit,
     onRestoreRoutine: (String) -> Unit,
     onRestoreMedicine: (String) -> Unit,
@@ -109,8 +110,9 @@ fun SettingsScreen(
                     SettingRow(
                         "Backup",
                         state.lastBackup?.let { "Último em ${it.format(LastBackupFormatter)}" } ?: "Nenhum backup ainda",
-                        "Exportar", last = true, onClick = onExportBackup,
+                        "Exportar", onClick = onExportBackup,
                     )
+                    SettingRow("Importar backup", "Substitui o Planner atual", "Importar", last = true, onClick = onImportBackup)
                 }
             }
         }

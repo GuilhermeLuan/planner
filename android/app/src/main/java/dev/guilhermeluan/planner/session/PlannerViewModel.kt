@@ -4,11 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.guilhermeluan.planner.PlannerApplication
+import dev.guilhermeluan.planner.backup.Backup
+import dev.guilhermeluan.planner.backup.BackupReader
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.time.ZoneId
 
@@ -72,6 +76,21 @@ class PlannerViewModel(
     fun exportBackup(onResult: (Result<JSONObject>) -> Unit) {
         viewModelScope.launch {
             val result = runCatching { lifecycle.exportBackup() }
+            onResult(result)
+        }
+    }
+
+    fun readBackup(text: String, onResult: (Result<Backup>) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching { withContext(Dispatchers.Default) { BackupReader.read(text) } }
+            onResult(result)
+        }
+    }
+
+    fun importBackup(backup: Backup, onResult: (Result<LocalPlanner>) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching { lifecycle.importBackup(backup) }
+                .onSuccess { _uiState.value = PlannerAppUiState.Ready(it) }
             onResult(result)
         }
     }

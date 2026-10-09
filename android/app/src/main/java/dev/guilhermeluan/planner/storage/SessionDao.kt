@@ -66,7 +66,7 @@ abstract class SessionDao {
         upsertMetadata(SessionMetadataEntity(ACTIVE_ACCOUNT_KEY, account.id))
     }
 
-    private companion object {
-        const val ACTIVE_ACCOUNT_KEY = "active_account_id"
+    companion object {
+        internal const val ACTIVE_ACCOUNT_KEY = "active_account_id"
     }
 }

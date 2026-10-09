@@ -1,6 +1,10 @@
 package dev.guilhermeluan.planner.session
 
+import android.util.Log
+import dev.guilhermeluan.planner.backup.Backup
 import dev.guilhermeluan.planner.backup.BackupExporter
+import dev.guilhermeluan.planner.backup.BackupImporter
+import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
 
 class PlannerLifecycle(
@@ -8,6 +12,8 @@ class PlannerLifecycle(
     private val settings: AccountSettingsRepository,
     private val migration: MigrationToLocal,
     private val backup: BackupExporter,
+    private val importer: BackupImporter,
+    private val reschedule: suspend (removedTaskIds: List<String>) -> Unit,
 ) {
     private var active: LocalPlanner? = null
 
@@ -32,6 +38,22 @@ class PlannerLifecycle(
     }
 
     suspend fun exportBackup(): JSONObject = backup.export(requireActive().account.id)
+
+    /** Substitui o Planner local pelo do [backup] e reagenda Lembretes e Alarmes. */
+    suspend fun importBackup(backup: Backup): LocalPlanner {
+        val removed = importer.import(backup)
+        val restored = checkNotNull(repository.restorePlanner()) { "Planner importado não encontrado" }
+        active = restored
+        // O Planner já foi substituído: uma falha no reagendamento não desfaz a importação.
+        try {
+            reschedule(removed)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("PlannerLifecycle", "Falha ao reagendar depois de importar", e)
+        }
+        return restored
+    }
 
     private fun requireActive(): LocalPlanner = checkNotNull(active) { "Planner ativo não encontrado" }
 }
