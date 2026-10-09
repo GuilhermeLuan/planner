@@ -31,6 +31,7 @@ abstract class PlannerDatabase : RoomDatabase() {
     abstract fun routineDao(): RoutineDao
     abstract fun medicineDao(): MedicineDao
     abstract fun waterDao(): WaterDao
+    abstract fun backupDao(): BackupDao
 
     companion object {
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {

@@ -3,6 +3,7 @@ package dev.guilhermeluan.planner
 import android.app.Application
 import androidx.room.Room
 import dev.guilhermeluan.planner.backup.BackupExporter
+import dev.guilhermeluan.planner.backup.BackupImporter
 import dev.guilhermeluan.planner.notifications.AndroidDoseAlarmGateway
 import dev.guilhermeluan.planner.notifications.AndroidDoseReminderGateway
 import dev.guilhermeluan.planner.notifications.AndroidWaterReminderGateway
@@ -67,6 +68,12 @@ class PlannerApplication : Application() {
         PlannerNotificationScheduler.rebuild(this, tasks, local.account.timezone)
     }
 
+    /** Cancela os Lembretes das Tarefas apagadas pela importação e reagenda tudo da Conta importada. */
+    suspend fun rescheduleAfterImport(removedTaskIds: List<String>) {
+        removedTaskIds.forEach { PlannerNotificationScheduler.cancelTask(this, it) }
+        rescheduleAll()
+    }
+
     suspend fun applyDoseReminderAction(key: DoseKey, action: DoseReminderAction) {
         val local = localPlannerRepository.restorePlanner() ?: return
         doseSchedule.applyAction(local.account.id, local.account.timezone, key, action)
@@ -121,6 +128,8 @@ class PlannerApplication : Application() {
             settings = accountSettingsRepository,
             migration = migrationToLocal,
             backup = backupExporter,
+            importer = BackupImporter(database, Clock.systemUTC()),
+            reschedule = ::rescheduleAfterImport,
         )
     }
 }

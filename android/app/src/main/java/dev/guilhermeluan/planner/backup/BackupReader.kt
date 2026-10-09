@@ -6,6 +6,7 @@ import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 
 object BackupReader {
     /**
@@ -35,10 +36,20 @@ object BackupReader {
         )
     }
 
+    /** Lê o texto de um arquivo de backup; texto que não é JSON também vira IllegalArgumentException. */
+    fun read(text: String): Backup {
+        val json = try {
+            JSONObject(text)
+        } catch (e: JSONException) {
+            throw IllegalArgumentException("Backup inválido: o arquivo não é um JSON válido", e)
+        }
+        return read(json)
+    }
+
     private fun readAccount(node: JsonNode) = BackupAccount(
         id = node.string("id"),
         name = node.string("nome"),
-        timezone = node.string("fuso"),
+        timezone = node.zone("fuso"),
     )
 
     private fun readTask(node: JsonNode) = BackupTask(
@@ -216,6 +227,7 @@ private class JsonNode(private val json: JSONObject, private val path: String) {
     fun date(name: String): LocalDate = required(name) { LocalDate.parse(getString(it)) }
     fun time(name: String): LocalTime = required(name) { LocalTime.parse(getString(it)) }
     fun instant(name: String): Instant = required(name) { Instant.parse(getString(it)) }
+    fun zone(name: String): String = required(name) { getString(it).also { id -> ZoneId.of(id) } }
 
     fun optionalInt(name: String): Int? = optional(name) { getInt(it) }
     fun optionalDate(name: String): LocalDate? = optional(name) { LocalDate.parse(getString(it)) }

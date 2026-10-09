@@ -9,6 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -307,6 +308,42 @@ class BackupReaderTest {
         assertEquals("Backup inválido: valor inválido em remedios[0].repeticao.diasDaSemana[1]", error.message)
     }
 
-    private fun fixture(name: String): JSONObject =
-        JSONObject(javaClass.getResource("/backup/$name")!!.readText())
+    @Test
+    fun `text that is not JSON is rejected with a message in Portuguese`() {
+        val error = assertThrows(IllegalArgumentException::class.java) { BackupReader.read("isto não é json") }
+
+        assertEquals("Backup inválido: o arquivo não é um JSON válido", error.message)
+    }
+
+    @Test
+    fun `text reads the same backup as its JSON object`() {
+        val text = fixtureText("backup-v2.json")
+
+        assertEquals(BackupReader.read(JSONObject(text)), BackupReader.read(text))
+    }
+
+    @Test
+    fun `unknown timezone of the Conta is rejected with the path of the field`() {
+        val json = fixture("backup-v2.json")
+        json.getJSONObject("conta").put("fuso", "Marte/Olympus")
+
+        val error = assertThrows(IllegalArgumentException::class.java) { BackupReader.read(json) }
+
+        assertEquals("Backup inválido: valor inválido em conta.fuso", error.message)
+    }
+
+    @Test
+    fun `malformed timezone of the Conta is rejected with the path of the field and the original cause`() {
+        val json = fixture("backup-v2.json")
+        json.getJSONObject("conta").put("fuso", "São Paulo")
+
+        val error = assertThrows(IllegalArgumentException::class.java) { BackupReader.read(json) }
+
+        assertEquals("Backup inválido: valor inválido em conta.fuso", error.message)
+        assertTrue(error.cause is DateTimeException)
+    }
+
+    private fun fixture(name: String): JSONObject = JSONObject(fixtureText(name))
+
+    private fun fixtureText(name: String): String = javaClass.getResource("/backup/$name")!!.readText()
 }

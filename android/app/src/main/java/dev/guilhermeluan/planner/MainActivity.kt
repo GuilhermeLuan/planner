@@ -45,7 +45,9 @@ import dev.guilhermeluan.planner.ui.navigation.PlannerTabHost
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
 import dev.guilhermeluan.planner.water.WaterScreen
 import dev.guilhermeluan.planner.water.WaterViewModel
+import dev.guilhermeluan.planner.you.ImportBackupDialog
 import dev.guilhermeluan.planner.you.YouTab
+import dev.guilhermeluan.planner.backup.Backup
 import dev.guilhermeluan.planner.you.YouViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.guilhermeluan.planner.notifications.ExactAlarmPermission
@@ -127,6 +129,54 @@ private fun PlannerApp(
                 },
             )
         }
+    }
+    // O backup lido fica aqui até a pessoa confirmar que o Planner atual será substituído.
+    var pendingBackup by remember { mutableStateOf<Backup?>(null) }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = try {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha ao ler backup", e)
+            null
+        }
+        if (text == null) {
+            Toast.makeText(context, "Erro ao ler o arquivo", Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        viewModel.readBackup(text) { result ->
+            result.fold(
+                onSuccess = { pendingBackup = it },
+                onFailure = { e ->
+                    Toast.makeText(context, e.message ?: "Backup inválido", Toast.LENGTH_LONG).show()
+                },
+            )
+        }
+    }
+    pendingBackup?.let { backup ->
+        ImportBackupDialog(
+            onConfirm = {
+                pendingBackup = null
+                viewModel.importBackup(backup) { result ->
+                    result.fold(
+                        onSuccess = { imported ->
+                            val timezone = imported.account.timezone
+                            dayViewModel.updateTimezone(timezone)
+                            medicinesViewModel.updateTimezone(timezone)
+                            waterViewModel.updateTimezone(timezone)
+                            Toast.makeText(context, "Backup importado", Toast.LENGTH_SHORT).show()
+                        },
+                        onFailure = { e ->
+                            Log.e(TAG, "Falha ao importar backup", e)
+                            Toast.makeText(context, "Erro ao importar o backup", Toast.LENGTH_SHORT).show()
+                        },
+                    )
+                }
+            },
+            onDismiss = { pendingBackup = null },
+        )
     }
     when (val current = state) {
         PlannerAppUiState.Loading -> LoadingScreen()
@@ -235,6 +285,7 @@ private fun PlannerApp(
                             context.startActivity(NotificationPermission.settingsIntent(context))
                         },
                         onExportBackup = { exportLauncher.launch("planner-backup.json") },
+                        onImportBackup = { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
                         onRestoreTask = dayViewModel::restoreTask,
                         onRestoreRoutine = dayViewModel::restoreRoutine,
                         onRestoreMedicine = medicinesViewModel::restoreMedicine,
