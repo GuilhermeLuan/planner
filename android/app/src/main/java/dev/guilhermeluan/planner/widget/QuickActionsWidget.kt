@@ -23,7 +23,12 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.currentState
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
@@ -65,10 +70,14 @@ private val Wine = tone({ it.wine })
 /** Widget largo (4×1) com os atalhos Tarefa, Água e Remédio; Água e Remédio confirmam o toque por ~3 s. */
 class QuickActionsWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Single
+    override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val store = (context.applicationContext as PlannerApplication).quickConfirmations
         provideContent {
+            // Ler o estado do Glance faz o conteúdo recompor a cada refresh, mesmo com a sessão ainda aberta; sem
+            // isso, a confirmação nova (ou a expirada) não chega à tela.
+            currentState<Preferences>()[REFRESH_KEY]
             val now = Instant.now()
             QuickActionsContent(
                 context = context,
@@ -80,10 +89,15 @@ class QuickActionsWidget : GlanceAppWidget() {
 
     companion object {
         const val EXTRA_KIND = "quickKind"
+        private val REFRESH_KEY = longPreferencesKey("refresh")
 
         /** Redesenha o widget e agenda o retorno ao repouso quando [confirmation] expirar. */
         suspend fun refresh(context: Context, confirmation: QuickConfirmation? = null) {
-            QuickActionsWidget().updateAll(context)
+            val widget = QuickActionsWidget()
+            GlanceAppWidgetManager(context).getGlanceIds(QuickActionsWidget::class.java).forEach { id ->
+                updateAppWidgetState(context, id) { it[REFRESH_KEY] = System.nanoTime() }
+                widget.update(context, id)
+            }
             confirmation?.let { scheduleReset(context, it.until) }
         }
 
