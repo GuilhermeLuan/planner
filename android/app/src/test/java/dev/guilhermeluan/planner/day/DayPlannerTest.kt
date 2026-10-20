@@ -94,6 +94,28 @@ class DayPlannerTest {
     }
 
     @Test
+    fun `archiving a Rotina removes it from the Dia and restoring brings it back`() = runTest {
+        val account = Account("account-1", "Gui", "America/Sao_Paulo", false)
+        val planner = Planner("planner-1", account.id)
+        database.seed(account, planner)
+        val dayPlanner = DayPlanner(
+            RoomPlannerRepository(database, IdGenerator { "routine-1" }, Clock.systemUTC()),
+            RecordingReminderAdapter(),
+        )
+        dayPlanner.bind(account, planner)
+        val monday = LocalDate.of(2026, 7, 13)
+        val routine = dayPlanner.createRoutine(RoutineDraft("Alongar", setOf(DayOfWeek.MONDAY), monday, null))
+
+        dayPlanner.archiveRoutine(routine.id)
+
+        assertEquals(emptyList<String>(), dayPlanner.observeDay(monday).first().routines.map { it.title })
+
+        dayPlanner.restoreRoutine(routine.id)
+
+        assertEquals(listOf("Alongar"), dayPlanner.observeDay(monday).first().routines.map { it.title })
+    }
+
+    @Test
     fun `changing Fuso da Conta rebuilds reminders using the new timezone`() = runTest {
         val account = Account("account-1", "Gui", "America/Sao_Paulo", false)
         val planner = Planner("planner-1", account.id)
