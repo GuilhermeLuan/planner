@@ -99,6 +99,7 @@ fun DayScreen(
     onEditTask: (String, String, LocalTime?) -> Unit = { _, _, _ -> },
     onRescheduleTask: (String, LocalDate) -> Unit = { _, _ -> },
     onArchiveTask: (String) -> Unit = {},
+    onArchiveRoutine: (String) -> Unit = {},
     onRestoreTask: (String) -> Unit = {},
     summary: DaySummary = DaySummary.Empty,
     onOpenWater: () -> Unit = {},
@@ -179,7 +180,7 @@ fun DayScreen(
                             ) {
                                 plan.routines.forEachIndexed { index, routine ->
                                     if (index > 0) HorizontalDivider(color = PlannerExtras.palette.line)
-                                    RoutineRow(routine, onToggleRoutine)
+                                    RoutineRow(routine, onToggleRoutine, onArchiveRoutine)
                                 }
                             }
                         }
@@ -548,7 +549,9 @@ private fun EmptySectionText(message: String) {
 private fun RoutineRow(
     routine: PlannedRoutineOccurrence,
     onToggleRoutine: (String, LocalDate, RoutineOccurrenceStatus) -> Unit,
+    onArchiveRoutine: (String) -> Unit,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     val done = routine.status == RoutineOccurrenceStatus.DONE
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
@@ -565,7 +568,7 @@ private fun RoutineRow(
                 )
             },
         )
-        Column(modifier = Modifier.padding(start = 8.dp)) {
+        Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
             Text(
                 routine.title,
                 style = MaterialTheme.typography.titleMedium,
@@ -576,6 +579,24 @@ private fun RoutineRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = PlannerExtras.palette.mutedInk,
             )
+        }
+        Box {
+            IconButton(onClick = { showMenu = true }, modifier = Modifier.size(44.dp)) {
+                Icon(
+                    Icons.Outlined.MoreVert,
+                    contentDescription = "Ações de ${routine.title}",
+                    tint = PlannerExtras.palette.mutedInk,
+                )
+            }
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Arquivar") },
+                    onClick = {
+                        showMenu = false
+                        onArchiveRoutine(routine.routineId)
+                    },
+                )
+            }
         }
     }
 }

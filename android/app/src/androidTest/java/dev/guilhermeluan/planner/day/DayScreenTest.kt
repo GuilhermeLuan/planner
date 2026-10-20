@@ -46,7 +46,8 @@ class DayScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Rotinas").assertIsDisplayed()
+        // "Rotinas" também é o título do resumo "Seu dia"; a seção se reconhece pela ação própria.
+        composeRule.onNodeWithText("Nova rotina").assertIsDisplayed()
         composeRule.onNodeWithText("Tarefas").assertIsDisplayed()
         composeRule.onNodeWithText("2 restantes").assertIsDisplayed()
         composeRule.onNodeWithText("Livre").assertIsDisplayed()

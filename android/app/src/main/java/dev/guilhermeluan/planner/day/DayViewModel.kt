@@ -113,6 +113,13 @@ class DayViewModel(
         }
     }
 
+    fun archiveRoutine(routineId: String) {
+        accountId ?: return
+        viewModelScope.launch {
+            dayPlanner.archiveRoutine(routineId)
+        }
+    }
+
     fun restoreRoutine(routineId: String) {
         accountId ?: return
         viewModelScope.launch {

@@ -277,6 +277,7 @@ private fun PlannerApp(
                         onEditTask = dayViewModel::editTask,
                         onRescheduleTask = dayViewModel::rescheduleTask,
                         onArchiveTask = dayViewModel::archiveTask,
+                        onArchiveRoutine = dayViewModel::archiveRoutine,
                         onRestoreTask = dayViewModel::restoreTask,
                         summary = daySummary,
                         onOpenWater = { openTab(PlannerTab.Water) },

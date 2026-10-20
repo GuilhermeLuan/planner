@@ -7,10 +7,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performClick
+import dev.guilhermeluan.planner.tasks.ArchivedItems
 import dev.guilhermeluan.planner.ui.theme.PlannerTheme
+import dev.guilhermeluan.planner.you.SettingsScreen
+import dev.guilhermeluan.planner.you.YouUiState
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 
 class AccountSettingsScreenTest {
     @get:Rule
@@ -21,15 +25,32 @@ class AccountSettingsScreenTest {
         var saved: String? = null
         composeRule.setContent {
             PlannerTheme {
-                AccountSettingsScreen(
-                    currentTimezone = "America/Sao_Paulo",
-                    detectedTimezone = "America/Sao_Paulo",
-                    onSaveTimezone = { saved = it },
+                SettingsScreen(
+                    state = YouUiState(
+                        name = "Gui",
+                        timezone = "America/Sao_Paulo",
+                        memberSince = null,
+                        today = LocalDate.of(2026, 10, 19),
+                        consistency = null,
+                        notificationsEnabled = true,
+                        lastBackup = null,
+                        archived = ArchivedItems(),
+                    ),
                     onBack = {},
+                    onSaveName = {},
+                    onSaveTimezone = { saved = it },
+                    onOpenNotificationSettings = {},
+                    onExportBackup = {},
+                    onImportBackup = {},
+                    onRestoreTask = {},
+                    onRestoreRoutine = {},
+                    onRestoreMedicine = {},
+                    detectedTimezone = "America/Sao_Paulo",
                 )
             }
         }
 
+        composeRule.onNodeWithText("Alterar").performClick()
         composeRule.onNodeWithTag("account-timezone").performTextClearance()
         composeRule.onNodeWithTag("account-timezone").performTextInput("Mars/Olympus_Mons")
         composeRule.onNodeWithText("Fuso da Conta inválido").assertIsDisplayed()

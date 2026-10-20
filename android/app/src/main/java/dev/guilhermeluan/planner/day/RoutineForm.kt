@@ -207,9 +207,10 @@ internal fun StartDatePickerDialog(
     onConfirm: (LocalDate) -> Unit,
 ) {
     val context = LocalContext.current
-    val ptContext = remember(context) {
+    val configuration = LocalConfiguration.current
+    val ptContext = remember(context, configuration) {
         context.createConfigurationContext(
-            Configuration(context.resources.configuration).apply { setLocale(PtBr) },
+            Configuration(configuration).apply { setLocale(PtBr) },
         )
     }
     CompositionLocalProvider(
